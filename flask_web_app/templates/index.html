@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Health Monitor Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body data-poll-ms="{{ polling_interval_ms }}">
+  <header class="topbar">
+    <h1>Health Monitor Dashboard</h1>
+    <div class="status">
+      <span id="status-pill" class="pill pill-idle">idle</span>
+      <span id="status-detail" class="status-detail"></span>
+      <a id="download-csv" class="btn-download" href="/api/export.csv" download>Download Data</a>
+    </div>
+  </header>
+
+  <div id="anomaly-banner" class="banner banner-hidden" role="alert">
+    <span id="anomaly-banner-text">Anomaly detected.</span>
+    <button id="anomaly-open-chat" type="button">Talk to Kirby</button>
+  </div>
+
+  <main class="grid">
+    <section class="card">
+      <header><h2>SpO<sub>2</sub></h2><span id="spo2-now" class="big">--</span></header>
+      <div class="chart-wrap"><canvas id="chart-spo2"></canvas></div>
+    </section>
+
+    <section class="card">
+      <header><h2>BPM</h2><span id="bpm-now" class="big">--</span></header>
+      <div class="chart-wrap"><canvas id="chart-bpm"></canvas></div>
+    </section>
+
+    <section class="card card-verdict">
+      <header><h2>Verdict</h2></header>
+      <div class="verdict-grid">
+        <div><span class="label">SpO<sub>2</sub> status</span><span id="verdict-spo2" class="pill pill-idle">--</span></div>
+        <div><span class="label">BPM status</span><span id="verdict-bpm" class="pill pill-idle">--</span></div>
+        <div><span class="label">Avg SpO<sub>2</sub></span><span id="verdict-avg-spo2" class="value">--</span></div>
+        <div><span class="label">Avg BPM</span><span id="verdict-avg-bpm" class="value">--</span></div>
+        <div><span class="label">Window</span><span id="verdict-window" class="value">--</span></div>
+        <div><span class="label">Anomaly</span><span id="verdict-anomaly" class="pill pill-idle">none</span></div>
+      </div>
+    </section>
+  </main>
+
+  <aside id="chat-panel" class="chat-panel chat-hidden" aria-label="Kirby chat">
+    <header class="chat-header">
+      <span class="chat-title">Kirby</span>
+      <button id="chat-close" type="button" aria-label="Close chat">×</button>
+    </header>
+    <p class="chat-disclaimer">This is wellness coaching, not medical advice.</p>
+    <div id="chat-log" class="chat-log"></div>
+    <form id="chat-form" class="chat-form">
+      <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Reply to Kirby...">
+      <button id="chat-mic" type="button" class="mic-btn" aria-label="Voice input"
+              aria-pressed="false" title="Click to speak">🎤</button>
+      <button type="submit">Send</button>
+    </form>
+  </aside>
+
+  <button id="chat-toggle" class="chat-toggle" type="button" aria-label="Open chat">Kirby</button>
+
+  <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>
