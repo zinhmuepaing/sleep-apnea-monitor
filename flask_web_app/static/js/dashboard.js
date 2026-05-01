@@ -141,11 +141,51 @@ function speak(text) {
   window.speechSynthesis.speak(u);
 }
 
+const KIRBY_AVATAR_SRC = document.body.dataset.kirbyAvatar || "";
+
+function buildAvatarEl(role) {
+  const span = document.createElement("span");
+  span.className = "msg-avatar";
+  if (role === "user") {
+    span.textContent = "🙂";
+    return span;
+  }
+  if (KIRBY_AVATAR_SRC) {
+    const img = document.createElement("img");
+    img.src = KIRBY_AVATAR_SRC;
+    img.alt = "Kirby";
+    img.width = 32;
+    img.height = 32;
+    span.appendChild(img);
+  } else {
+    span.textContent = "🐾";
+  }
+  return span;
+}
+
+function buildMessageRow(role) {
+  const row = document.createElement("div");
+  row.className = `msg msg-${role}`;
+  row.appendChild(buildAvatarEl(role));
+  const body = document.createElement("div");
+  body.className = "msg-body";
+  if (role !== "user") {
+    const name = document.createElement("span");
+    name.className = "msg-name";
+    name.textContent = role === "error" ? "Kirby" : "Kirby";
+    body.appendChild(name);
+  }
+  row.appendChild(body);
+  return { row, body };
+}
+
 function appendBubble(role, text) {
-  const div = document.createElement("div");
-  div.className = `bubble bubble-${role}`;
-  div.textContent = text;
-  chatLogEl.appendChild(div);
+  const { row, body } = buildMessageRow(role);
+  const bubble = document.createElement("div");
+  bubble.className = `bubble bubble-${role}`;
+  bubble.textContent = text;
+  body.appendChild(bubble);
+  chatLogEl.appendChild(row);
   chatLogEl.scrollTop = chatLogEl.scrollHeight;
 }
 
@@ -157,6 +197,7 @@ function openChat() {
 
 function appendLinksBubble(links) {
   if (!Array.isArray(links) || links.length === 0) return;
+  const { row, body } = buildMessageRow("kirby");
   const div = document.createElement("div");
   div.className = "bubble bubble-kirby bubble-links";
   const list = document.createElement("ul");
@@ -188,7 +229,8 @@ function appendLinksBubble(links) {
     list.appendChild(li);
   }
   div.appendChild(list);
-  chatLogEl.appendChild(div);
+  body.appendChild(div);
+  chatLogEl.appendChild(row);
   chatLogEl.scrollTop = chatLogEl.scrollHeight;
 }
 

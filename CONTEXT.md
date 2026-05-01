@@ -7,7 +7,7 @@ Quick lookup for hardware specs, existing code, and clinical numbers. Keep this 
 | Component       | Part            | Role                                          |
 |-----------------|-----------------|-----------------------------------------------|
 | Microcontroller | LilyGO TTGO T-Display V1.1 | Dual-core, built-in TFT, Wi-Fi          |
-| Firmware target | `lilygo-t-display` | PlatformIO environment for the T-Display |
+| Firmware path   | `arduino_sketch/health_monitor/` | Core 1 hosts Wi-Fi `/data`; Core 0 drives TFT |
 | PPG sensor      | MAX30102        | SpO2 and BPM via IR + Red light; I2C SDA 21, SCL 22 |
 | IMU             | MPU6050         | 6-axis accelerometer + gyro for movement      |
 | Display         | Integrated 1.14-inch ST7789 TFT | Live SpO2, BPM, movement, PPG strip           |
@@ -16,21 +16,18 @@ Quick lookup for hardware specs, existing code, and clinical numbers. Keep this 
 
 ## Firmware Behaviour Reference
 
-Loop runs continuously. Key signal processing chain in `arduinoCodes.c`:
-1. Read raw FIFO from MAX30102
-2. SMA smoothing across 5 samples (`SMA_WINDOW`)
-3. Median filter across 5 samples (`MEDIAN_SIZE`)
-4. Beat detection via `checkForBeat(ir)` from `heartRate.h`
-5. BPM averaged over last 15 beats (`RATE_SIZE`)
-6. SpO2 derived from R ratio every 200 samples, averaged over last 8 valid values (`SPO2_AVG_COUNT`)
-7. SpO2 valid range: 88 to 100. Anything outside is dropped.
+Loop runs continuously in `arduino_sketch/health_monitor/health_monitor.ino`.
+The firmware reads MAX30102 data, applies smoothing and beat detection, and hosts a local web endpoint.
 
-Web server (Core 1) exposes:
-- `GET /data` returning JSON: `{spo2, bpm, movement, ir, red}`
+Key payload behaviour:
+- `GET /data` returns JSON with only `spo2` and `bpm`
+- The web app ignores `movement`, `ir`, and `red` because the current firmware payload is scoped to BPM and SpO2
+- `bpm` is int, 20-255; `0` means no finger on sensor
+- `spo2` is float, 88.0-100.0; `0.0` means no finger on sensor
 
 ## Flutter App Behaviour Reference
 
-The Flutter app is the canonical reference for UX patterns in the Flask app.
+The Flutter app is the canonical reference for threshold logic and profile modelling in the Flask app.
 
 Profile model:
 ```json
@@ -78,7 +75,7 @@ History session snapshot (saved on Save to History):
 }
 ```
 
-The Flask app should use the same field names so the two clients stay interchangeable.
+The Flask app should use the same field names so clients stay aligned.
 
 ## Clinical Validation Numbers
 
@@ -106,3 +103,17 @@ Flask routing and LLM call style: `https://github.com/zinhmuepaing/Career-Quest-
 - HRV: Heart rate variability (future scope)
 - SMA: Simple moving average
 - IMU: Inertial measurement unit
+
+## Service Integration Notes
+
+The Flask app now includes clinic lookup and Telegram handoff.
+
+- `clinics.py` performs Google Places API (New) search for nearby clinics, doctors, and hospitals.
+- `llm.py` detects booking intent in chat and can call `send_booking_to_telegram`.
+- `telegram_bot.py` sends a card to the configured Telegram chat with inline buttons for Maps and website links.
+- `debug.py` includes `/api/clinics/test` for validating the Places API key and request shape.
+
+Env vars:
+- `GOOGLE_PLACES_API_KEY`: enables nearby clinic lookup
+- `TELEGRAM_BOT_TOKEN`: Telegram bot token from @BotFather
+- `TELEGRAM_CHAT_ID`: tester's personal Telegram chat id

@@ -45,6 +45,10 @@ class Config:
     # Google Places API (New) for nearby clinic / hospital lookup.
     GOOGLE_PLACES_API_KEY = (os.getenv("GOOGLE_PLACES_API_KEY", "") or "").strip()
 
+    # Telegram Bot for clinic booking handoff (mobile Singpass auth).
+    TELEGRAM_BOT_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN", "") or "").strip()
+    TELEGRAM_CHAT_ID = (os.getenv("TELEGRAM_CHAT_ID", "") or "").strip()
+
     # Behaviour
     POLLING_INTERVAL_MS = _int("POLLING_INTERVAL_MS", 1000)
     ROLLING_WINDOW_SECONDS = _int("ROLLING_WINDOW_SECONDS", 300)

@@ -58,3 +58,4 @@ arduino_sketch/**/build/
 #CLAUDE markdown files
 SKILLS.md
 CLAUDE.md
+FEATURE_TELEGRAM_HANDOFF.md

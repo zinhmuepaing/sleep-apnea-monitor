@@ -99,3 +99,19 @@ Items that are out of scope for the first build:
 - ECG sensor integration (blocked by T-Display memory)
 
 Revisit after Phase 4 ships and the supervisor and industry partner have given feedback.
+
+
+## Phase 5: Telegram Mobile Handoff for Booking
+
+Goal: when the user asks to book a clinic appointment, push a Telegram card with inline buttons to their phone so they can authenticate via Singpass on mobile.
+
+Backend:
+- `flask_web_app/telegram_bot.py` exposes `send_booking_card(name, maps_url, address)`. Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` at call time.
+- `llm.py` adds `_is_booking_query` and `_extract_clinic_from_history`. `continue_chat` fires `send_booking_card` on a background thread and seeds Kirby's reply with a handoff prompt.
+- Bot identity: @medicalAppointmentBookingBot, registered as Kirby with @BotFather.
+- For MVP, `TELEGRAM_CHAT_ID` is hardcoded for one tester. Multi-user linking is deferred.
+
+Frontend:
+- No changes. Kirby's text reply tells the user to check their phone. Web Speech speaks it aloud.
+
+Exit criterion: in chat, after Kirby has listed clinics, type "book me an appointment at <clinic name>". Within 2 seconds the tester's phone receives a Telegram card with two working buttons. The web chat shows Kirby's handoff acknowledgment.

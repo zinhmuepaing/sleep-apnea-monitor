@@ -7,7 +7,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
-<body data-poll-ms="{{ polling_interval_ms }}">
+<body data-poll-ms="{{ polling_interval_ms }}"
+      data-kirby-avatar="{{ url_for('static', filename='img/kirby.png') }}">
   <header class="topbar">
     <h1>Health Monitor Dashboard</h1>
     <div class="status">
@@ -48,20 +49,50 @@
 
   <aside id="chat-panel" class="chat-panel chat-hidden" aria-label="Kirby chat">
     <header class="chat-header">
-      <span class="chat-title">Kirby</span>
+      <div class="chat-identity">
+        <span class="chat-avatar">
+          <img src="{{ url_for('static', filename='img/kirby.png') }}" alt="Kirby" width="40" height="40">
+          <span class="chat-status-dot" aria-label="online"></span>
+        </span>
+        <div class="chat-name-block">
+          <span class="chat-title">Kirby</span>
+          <span class="chat-subtitle">Sleep &amp; cardiac companion</span>
+        </div>
+      </div>
       <button id="chat-close" type="button" aria-label="Close chat">×</button>
     </header>
     <p class="chat-disclaimer">This is wellness coaching, not medical advice.</p>
     <div id="chat-log" class="chat-log"></div>
     <form id="chat-form" class="chat-form">
-      <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Reply to Kirby...">
+      <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Message Kirby...">
       <button id="chat-mic" type="button" class="mic-btn" aria-label="Voice input"
-              aria-pressed="false" title="Click to speak">🎤</button>
-      <button type="submit">Send</button>
+              aria-pressed="false" title="Click to speak">
+        <svg class="mic-icon mic-icon-idle" viewBox="0 0 24 24" width="18" height="18"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" x2="12" y1="19" y2="22"/>
+        </svg>
+        <svg class="mic-icon mic-icon-recording" viewBox="0 0 24 24" width="18" height="18"
+             fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <rect x="9" y="9" width="6" height="6"/>
+        </svg>
+      </button>
+      <button type="submit" class="chat-send" aria-label="Send">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M3 11l18-8-8 18-2-8-8-2z" fill="currentColor"/>
+        </svg>
+      </button>
     </form>
   </aside>
 
-  <button id="chat-toggle" class="chat-toggle" type="button" aria-label="Open chat">Kirby</button>
+  <button id="chat-toggle" class="kirby-trigger" type="button" aria-label="Ask Kirby">
+    <span class="kirby-orb" aria-hidden="true"></span>
+    <span class="kirby-trigger-label">Ask Kirby</span>
+  </button>
 
   <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>

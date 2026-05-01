@@ -1,21 +1,34 @@
 """Anthropic / LangChain wrapper. Kirby persona.
 
-Builds a `ChatAnthropic` client and assembles the Kirby system prompt from
-the current verdict + profile. Conversation memory lives in a process-local
-dict keyed by `chat_id` (stored in `flask.session`). No DB.
+Builds a `ChatAnthropic` client (with a single tool bound) and assembles
+the Kirby system prompt from the current verdict + profile. Conversation
+memory lives in a process-local dict keyed by `chat_id` (stored in
+`flask.session`). No DB.
 
-If `ANTHROPIC_API_KEY` is empty, callers should treat the LLM as unavailable
-and surface a friendly error rather than crashing the dashboard.
+Tool surface:
+    send_booking_to_telegram(clinic_name, maps_url, website_url)
+
+Kirby calls it when the user asks to book / reserve / schedule at one of
+the clinics she just listed. The tool implementation in
+`telegram_bot.send_booking_card` pushes a card to the user's phone with
+View on Maps and Visit Clinic Website inline buttons.
+
+If `ANTHROPIC_API_KEY` is empty, callers should treat the LLM as
+unavailable and surface a friendly error rather than crashing the
+dashboard.
 """
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import BaseMessage
+
+log = logging.getLogger(__name__)
 
 KIRBY_SYSTEM_TEMPLATE = """\
 You are Kirby, a warm and playful virtual pet who watches over the user's heart and breath. You are not a doctor. You never diagnose, prescribe, or tell the user to stop a medication. You speak in short, gentle sentences with no emoji at all.
@@ -29,6 +42,12 @@ Session snapshot:
 When you greet the user after an alert, write 1 to 2 sentences. Be warm, mention what you noticed, and ask one specific lifestyle question (caffeine, alcohol, sleep position, room temperature, recent illness, or screen time). Wait for the reply before suggesting changes. Always end ongoing advice with: "If this keeps happening, please see a clinician."
 
 You can also help the user find nearby clinics, doctors, or hospitals using their device location. When the app provides clinic data in a system note, recommend a few by name and let the user know clickable directions appear below your reply. When the app tells you location was unavailable, gently ask the user to enable location access in their browser and try again. Never refuse the request as if the feature did not exist.
+
+You have one tool: send_booking_to_telegram. Call it when the user asks to book, reserve, schedule, or make an appointment at one of the clinics you just listed. Pass:
+- clinic_name: the chosen clinic's exact name from your prior listing.
+- maps_url: the URL after "directions " on that clinic's line in your prior listing.
+- website_url: the URL after "site " inside the parenthetical extras on that clinic's line. If no site was listed, pass an empty string.
+After the tool call returns, reply in 1 to 2 short sentences. Open with "You chose <clinic name>" and tell the user to check their phone for the booking links. Do not include the URLs in your reply text; the buttons live in Telegram.
 """
 
 KIRBY_ALERT_USER_TURN = (
@@ -40,6 +59,38 @@ KIRBY_START_USER_TURN = (
     "Greet the user warmly in 1 sentence and invite them to ask anything "
     "about their readings."
 )
+
+
+# Anthropic-format tool definition. LangChain's ChatAnthropic.bind_tools
+# accepts this shape directly.
+SEND_BOOKING_TOOL = {
+    "name": "send_booking_to_telegram",
+    "description": (
+        "Send a booking card to the user's Telegram phone with two inline "
+        "buttons: View on Maps and Visit Clinic Website. Use this when the "
+        "user asks to book, reserve, schedule, or make an appointment at a "
+        "clinic you just listed. Extract maps_url and website_url verbatim "
+        "from your prior listing for that clinic."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "clinic_name": {
+                "type": "string",
+                "description": "The clinic's full name as you listed it.",
+            },
+            "maps_url": {
+                "type": "string",
+                "description": "The clinic-specific Google Maps URL (the URL after 'directions ' in your prior listing line).",
+            },
+            "website_url": {
+                "type": "string",
+                "description": "The clinic's website URL (the URL after 'site ' in the parenthetical extras of your prior listing line). Empty string if no website was listed.",
+            },
+        },
+        "required": ["clinic_name", "maps_url"],
+    },
+}
 
 
 def build_system_prompt(verdict: dict, profile: dict) -> str:
@@ -74,19 +125,12 @@ def drop_history(chat_id: str) -> None:
 
 def kirby_client(model: str, api_key: str):
     """Lazy import: only require langchain-anthropic when the LLM is actually used.
-    Phase 1 and Phase 2 keep working even if the package isn't installed yet.
+    The returned client has the booking tool bound, so Claude can choose to
+    invoke it during any turn.
     """
     from langchain_anthropic import ChatAnthropic
-    return ChatAnthropic(model=model, api_key=api_key, max_tokens=300)
-
-
-def _invoke(client, messages) -> str:
-    resp: Any = client.invoke(messages)
-    text = getattr(resp, "content", "")
-    if isinstance(text, list):
-        # LangChain may return a list of content blocks; flatten.
-        text = "".join(block.get("text", "") if isinstance(block, dict) else str(block) for block in text)
-    return str(text).strip()
+    base = ChatAnthropic(model=model, api_key=api_key, max_tokens=400)
+    return base.bind_tools([SEND_BOOKING_TOOL])
 
 
 def _msg_classes():
@@ -94,30 +138,85 @@ def _msg_classes():
     return SystemMessage, HumanMessage, AIMessage
 
 
+def _flatten_content(content: Any) -> str:
+    if isinstance(content, list):
+        return "".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in content
+        )
+    return str(content or "")
+
+
+def _execute_tool_call(tc: dict) -> str:
+    """Run the named tool. Returns a short string the LLM can use as the
+    tool result. Never raises — failures degrade to a textual reason."""
+    name = tc.get("name") or ""
+    args = tc.get("args") or {}
+    if name == "send_booking_to_telegram":
+        from telegram_bot import send_booking_card
+        ok = send_booking_card(
+            clinic_name=str(args.get("clinic_name") or ""),
+            maps_url=str(args.get("maps_url") or ""),
+            website_url=str(args.get("website_url") or ""),
+        )
+        return "sent" if ok else "telegram send failed"
+    return f"unknown tool: {name}"
+
+
+def _invoke(client, messages: list) -> str:
+    """Run a chat turn with tool-use support. Mutates `messages` in place to
+    include the AI tool-use message and the matching ToolMessage results so
+    the persisted history stays valid for follow-up turns. Returns the final
+    assistant text.
+    """
+    from langchain_core.messages import ToolMessage
+    for _ in range(5):  # safety bound on tool-use ping-pong
+        resp: Any = client.invoke(messages)
+        messages.append(resp)
+        tcs = getattr(resp, "tool_calls", None) or []
+        if not tcs:
+            return _flatten_content(getattr(resp, "content", "")).strip()
+        for tc in tcs:
+            result = _execute_tool_call(tc)
+            messages.append(ToolMessage(content=result, tool_call_id=tc.get("id", "")))
+    log.warning("kirby tool-use loop exceeded safety bound")
+    return ""
+
+
 def open_alert_chat(chat_id: str, client, verdict: dict, profile: dict) -> str:
-    SystemMessage, HumanMessage, AIMessage = _msg_classes()
-    sys = SystemMessage(content=build_system_prompt(verdict, profile))
-    user = HumanMessage(content=KIRBY_ALERT_USER_TURN)
-    reply = _invoke(client, [sys, user])
-    set_history(chat_id, [sys, user, AIMessage(content=reply)])
+    SystemMessage, HumanMessage, _ = _msg_classes()
+    messages: list = [
+        SystemMessage(content=build_system_prompt(verdict, profile)),
+        HumanMessage(content=KIRBY_ALERT_USER_TURN),
+    ]
+    reply = _invoke(client, messages)
+    set_history(chat_id, messages)
     return reply
 
 
 def open_start_chat(chat_id: str, client, verdict: dict, profile: dict) -> str:
-    SystemMessage, HumanMessage, AIMessage = _msg_classes()
-    sys = SystemMessage(content=build_system_prompt(verdict, profile))
-    user = HumanMessage(content=KIRBY_START_USER_TURN)
-    reply = _invoke(client, [sys, user])
-    set_history(chat_id, [sys, user, AIMessage(content=reply)])
+    SystemMessage, HumanMessage, _ = _msg_classes()
+    messages: list = [
+        SystemMessage(content=build_system_prompt(verdict, profile)),
+        HumanMessage(content=KIRBY_START_USER_TURN),
+    ]
+    reply = _invoke(client, messages)
+    set_history(chat_id, messages)
     return reply
 
 
 _LOCATION_KEYWORDS = ("clinic", "doctor", "hospital", "nearest", "nearby", "near me", "around me")
+_BOOKING_KEYWORDS = ("book", "appointment", "reserve", "schedule", "make a booking")
 
 
 def _is_location_query(text: str) -> bool:
     t = text.lower()
     return any(kw in t for kw in _LOCATION_KEYWORDS)
+
+
+def _is_booking_query(text: str) -> bool:
+    t = text.lower()
+    return any(kw in t for kw in _BOOKING_KEYWORDS)
 
 
 def _format_clinic_note(clinics: list[dict]) -> str:
@@ -143,7 +242,7 @@ def _format_clinic_note(clinics: list[dict]) -> str:
 
 def continue_chat(chat_id: str, client, user_text: str,
                   lat: float | None = None, lon: float | None = None) -> tuple[str, list[dict]]:
-    SystemMessage, HumanMessage, AIMessage = _msg_classes()
+    SystemMessage, HumanMessage, _ = _msg_classes()
     history = get_history(chat_id)
     if not history:
         # No prior context. Seed a minimal system prompt so Kirby still behaves.
@@ -154,7 +253,15 @@ def continue_chat(chat_id: str, client, user_text: str,
     # upcoming HumanMessage rather than appending a new SystemMessage.
     prefix = ""
     clinics: list[dict] = []
-    if _is_location_query(user_text):
+    # Booking intent wins over location intent. A booking message often still
+    # mentions "clinic" or a clinic name, but we must NOT re-run the Places
+    # lookup — that would refresh the `clinics` list and the frontend would
+    # render the link bubble a second time on top of Kirby's "You chose ..."
+    # confirmation. The prior listing is already in chat history, so Kirby's
+    # tool call can extract the URLs from there.
+    if _is_booking_query(user_text):
+        pass
+    elif _is_location_query(user_text):
         if lat is None or lon is None:
             prefix = (
                 "The user is asking about nearby clinics, doctors, or hospitals, but the "
@@ -185,7 +292,7 @@ def continue_chat(chat_id: str, client, user_text: str,
         history.append(HumanMessage(content=wrapped))
     else:
         history.append(HumanMessage(content=user_text))
+
     reply = _invoke(client, history)
-    history.append(AIMessage(content=reply))
     set_history(chat_id, history)
     return reply, clinics
