@@ -29,6 +29,7 @@ ENV/
 flask_web_app/.venv/
 flask_web_app/__pycache__/
 flask_web_app/instance/
+flask_web_app/UI-Components
 
 # IDE / editor
 .vscode/
@@ -59,3 +60,4 @@ arduino_sketch/**/build/
 SKILLS.md
 CLAUDE.md
 FEATURE_TELEGRAM_HANDOFF.md
+FEATURE_TELEGRAM_BOT_INTERFACE.md

@@ -117,3 +117,17 @@ Env vars:
 - `GOOGLE_PLACES_API_KEY`: enables nearby clinic lookup
 - `TELEGRAM_BOT_TOKEN`: Telegram bot token from @BotFather
 - `TELEGRAM_CHAT_ID`: tester's personal Telegram chat id
+
+
+## Telegram as a Second Surface
+
+The bot @medicalAppointmentBookingBot now does two things:
+
+1. **Push** (Phase 5): one-way booking card, sent by Kirby's tool call from either surface.
+2. **Read** (Phase 6): Telegram users tap buttons or send messages. Flask polls Telegram on a daemon thread.
+
+Inbound is opt-in via `TELEGRAM_POLLING_ENABLED=true` in `.env`. Only one running instance should poll at a time per bot token (Telegram delivers each update to only one getUpdates caller).
+
+Kirby chat ids on Telegram are namespaced as `f"tg-{telegram_chat_id}"`, kept separate from the web's per-tab chat ids. Conversation memory still lives in the same in-process dict in `llm.py`.
+
+Vitals on Telegram come from the same `RollingBuffer` and `evaluate()` the dashboard uses; no duplicate state.

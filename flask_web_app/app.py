@@ -30,6 +30,10 @@ def create_app() -> Flask:
             polling_interval_ms=app.config["POLLING_INTERVAL_MS"],
         )
 
+    # Inbound Telegram polling. No-op when disabled or token missing.
+    from telegram_bot import start_polling_thread
+    start_polling_thread(app)
+
     return app
 
 

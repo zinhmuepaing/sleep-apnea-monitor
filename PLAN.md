@@ -115,3 +115,20 @@ Frontend:
 - No changes. Kirby's text reply tells the user to check their phone. Web Speech speaks it aloud.
 
 Exit criterion: in chat, after Kirby has listed clinics, type "book me an appointment at <clinic name>". Within 2 seconds the tester's phone receives a Telegram card with two working buttons. The web chat shows Kirby's handoff acknowledgment.
+
+
+## Phase 6: Telegram Bot as a Second Surface
+
+Goal: the user can open @medicalAppointmentBookingBot, tap My Vitals to see live BPM and SpO2 with a chart, or tap Chat with Kirby to ask anything they would ask on the web. Booking still pushes the existing card with View on Maps and Visit Clinic Website buttons.
+
+Backend:
+- `telegram_bot.py` grows from one push function into a small module: outbound primitives, a vitals snapshot builder (text + matplotlib chart PNG), and an inbound long-polling loop started by `app.py` at boot.
+- `llm.py` adds `continue_chat_for_telegram` that calls the same Kirby logic without a lat/lon and prompts the user to share their location through Telegram's attachment if a clinic search is requested.
+- The web app is untouched. No route changes. No template changes.
+
+Frontend (the bot):
+- A persistent reply keyboard with three buttons: My Vitals, Chat with Kirby, Help.
+- /start, /help, /status commands.
+- The existing booking card (Phase 5) is the booking output for both web and Telegram.
+
+Exit criterion: with `TELEGRAM_POLLING_ENABLED=true`, send `/start` to the bot. The keyboard appears. Tap My Vitals: a chart and current readings appear. Tap Chat with Kirby, type "find clinics near me", share location via Telegram attachment, Kirby lists clinics, type "book the first one", the booking card arrives in the same chat.

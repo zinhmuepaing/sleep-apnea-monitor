@@ -40,6 +40,13 @@ def resolve_ip() -> tuple[str | None, str | None]:
     return current_app.config["ESP32_IP"], None
 
 
+def get_default_ip() -> str:
+    """Request-context-free version of `resolve_ip`. Used by the Telegram
+    polling thread, which has no `request` to pull `?ip=` overrides from.
+    """
+    return current_app.config["ESP32_IP"]
+
+
 def fetch_device(ip: str, timeout: int) -> tuple[dict | None, str | None, int]:
     """Fetch `/data` from the T-Display.
 

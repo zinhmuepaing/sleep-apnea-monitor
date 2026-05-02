@@ -48,6 +48,9 @@ class Config:
     # Telegram Bot for clinic booking handoff (mobile Singpass auth).
     TELEGRAM_BOT_TOKEN = (os.getenv("TELEGRAM_BOT_TOKEN", "") or "").strip()
     TELEGRAM_CHAT_ID = (os.getenv("TELEGRAM_CHAT_ID", "") or "").strip()
+    # Inbound Telegram polling. Default OFF. Only enable on ONE running
+    # instance per bot token (Telegram delivers each update to one caller).
+    TELEGRAM_POLLING_ENABLED = (os.getenv("TELEGRAM_POLLING_ENABLED", "false") or "").strip().lower() == "true"
 
     # Behaviour
     POLLING_INTERVAL_MS = _int("POLLING_INTERVAL_MS", 1000)

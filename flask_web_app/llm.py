@@ -240,6 +240,46 @@ def _format_clinic_note(clinics: list[dict]) -> str:
     return "\n".join(lines)
 
 
+TELEGRAM_LOCATION_HINT = (
+    "The user is asking about nearby clinics, but this is the Telegram side "
+    "and no location was shared. In 1 short sentence ask them to tap the "
+    "paperclip icon and choose Location to share their position, then ask "
+    "again."
+)
+
+
+def continue_chat_for_telegram(chat_id: str, client, user_text: str) -> tuple[str, list[dict]]:
+    """Same logic as `continue_chat`, but no lat/lon. Telegram does not share
+    browser geolocation, so location-intent queries get a Telegram-specific
+    hint asking the user to share their location via the paperclip attachment.
+    """
+    SystemMessage, HumanMessage, _ = _msg_classes()
+    history = get_history(chat_id)
+    if not history:
+        history = [SystemMessage(content=build_system_prompt({}, {}))]
+
+    prefix = ""
+    clinics: list[dict] = []
+    if _is_booking_query(user_text):
+        pass
+    elif _is_location_query(user_text):
+        prefix = TELEGRAM_LOCATION_HINT
+
+    if prefix:
+        wrapped = (
+            "[App context for the assistant, not from the user]\n"
+            f"{prefix}\n\n"
+            f"User said:\n{user_text}"
+        )
+        history.append(HumanMessage(content=wrapped))
+    else:
+        history.append(HumanMessage(content=user_text))
+
+    reply = _invoke(client, history)
+    set_history(chat_id, history)
+    return reply, clinics
+
+
 def continue_chat(chat_id: str, client, user_text: str,
                   lat: float | None = None, lon: float | None = None) -> tuple[str, list[dict]]:
     SystemMessage, HumanMessage, _ = _msg_classes()
