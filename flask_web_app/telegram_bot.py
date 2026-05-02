@@ -313,10 +313,20 @@ def build_vitals_chart_png(samples: list, profile_activity: str, age: int) -> by
 
 def start_polling_thread(app) -> None:
     """Spawn the inbound-polling daemon thread. Idempotent. No-op if the
-    feature is disabled or the token is missing."""
+    feature is disabled or the token is missing.
+
+    Under Flask's debug reloader the app module is imported in BOTH the
+    watcher parent and the served child, so without the WERKZEUG_RUN_MAIN
+    guard below two pollers would race against the same bot token and the
+    user would see every reply twice. Werkzeug sets that env var only in
+    the child process; in production (no reloader) we start unconditionally.
+    """
     global _polling_started
     if not app.config.get("TELEGRAM_POLLING_ENABLED"):
         log.info("telegram polling disabled (TELEGRAM_POLLING_ENABLED=false)")
+        return
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        log.info("telegram polling skipped in reloader parent process")
         return
     if not _token():
         log.warning("telegram polling skipped: TELEGRAM_BOT_TOKEN not set")
