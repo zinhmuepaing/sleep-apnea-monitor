@@ -219,8 +219,7 @@ The booking flow is identical across surfaces: Kirby's tool call pushes a card w
 Original BME capstone:
 
 - **BME team:** Andrea Rudd, Wong Xin Hui
-- **CEN collaborators:** Nabil Bin Mohamad Aszami, Muhamad Ikram Bin Dins Esfian, Phang Zhi Hao
-- **Supervisor:** Raja Rangaswamy (TP)
+- **Supervisor:** Raja Rangaswamy (TP), Shankarappa KUMBAR (TP)
 - **Industry partner:** Dr. Baey (SleepEasy Clinic)
 
 Flask routing and LLM call style mirror [`zinhmuepaing/Career-Quest-Map`](https://github.com/zinhmuepaing/Career-Quest-Map).
