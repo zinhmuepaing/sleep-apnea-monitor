@@ -8,7 +8,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body data-poll-ms="{{ polling_interval_ms }}"
-      data-kirby-avatar="{{ url_for('static', filename='img/kirby.png') }}">
+      data-kirby-avatar="{{ url_for('static', filename='img/kirby.png') }}"
+      data-user-avatar="{{ url_for('static', filename='img/user.png') }}">
   <header class="topbar">
     <h1>Health Monitor Dashboard</h1>
     <div class="status">

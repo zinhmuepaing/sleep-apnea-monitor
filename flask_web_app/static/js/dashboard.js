@@ -142,23 +142,22 @@ function speak(text) {
 }
 
 const KIRBY_AVATAR_SRC = document.body.dataset.kirbyAvatar || "";
+const USER_AVATAR_SRC = document.body.dataset.userAvatar || "";
 
 function buildAvatarEl(role) {
   const span = document.createElement("span");
   span.className = "msg-avatar";
-  if (role === "user") {
-    span.textContent = "🙂";
-    return span;
-  }
-  if (KIRBY_AVATAR_SRC) {
+  const src = role === "user" ? USER_AVATAR_SRC : KIRBY_AVATAR_SRC;
+  const alt = role === "user" ? "You" : "Kirby";
+  if (src) {
     const img = document.createElement("img");
-    img.src = KIRBY_AVATAR_SRC;
-    img.alt = "Kirby";
+    img.src = src;
+    img.alt = alt;
     img.width = 32;
     img.height = 32;
     span.appendChild(img);
   } else {
-    span.textContent = "🐾";
+    span.textContent = role === "user" ? "🙂" : "🐾";
   }
   return span;
 }
