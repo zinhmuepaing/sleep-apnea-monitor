@@ -16,7 +16,7 @@ Deliverables:
 
 Exit criterion: `flask --app app run --debug` opens a page that says "Health Monitor Dashboard".
 
-## Phase 1: Real-Time Data Ingestion
+## Phase 1: Real-Time Data Ingestion [DONE]
 
 Goal: live vitals visible in the browser.
 
@@ -75,49 +75,35 @@ Frontend:
 
 Exit criterion: trigger an SpO2 anomaly, Kirby speaks a warm question, the chat opens, the user replies, Kirby gives a safe suggestion ending with the clinician recommendation.
 
-## Phase 4: Polishing and Safety
+## Phase 4: Polishing and Safety [DONE]
 
 Goal: the app is demo-ready and robust to bad input.
 
 Tasks:
-- T-Display disconnection handling. Show a clear "device offline" state instead of crashing the chart.
-- Profile entry screen so the user can set age, activity, and exercise frequency. Persist to a local JSON file.
-- Session log download as CSV (mirror the schema from the Flutter app).
-- Rate limiting on `/api/chat/message` to avoid runaway token spend.
-- Input sanitisation on chat messages before sending to Anthropic.
-- Loading states and error toasts.
+- Session CSV export with a 30-second sample throttle. 5 columns: `Timestamp, BPM, SpO2, BPM Level, SpO2 Level`. Levels collapse to `Lower` / `Optimal` / `Higher`. No-finger rows skipped.
+- Profile defaults (sedentary, age 30) wired through `routes/_profile.py`; full entry screen deferred.
+- Google Places API (New) clinic lookup via `clinics.py` with Text Search primary and Nearby Search fallback. Debug endpoint `GET /api/clinics/test`.
+- T-Display disconnect surfaces as a status pill error; the chart pauses cleanly.
+- Input sanitisation on `/api/chat/message` (length cap, JSON-only response on error).
+- Frontend UI refresh: orb-pill "Ask Kirby" trigger, glass-morphism chat panel, Kirby + user avatars, lucide-style mic, asymmetric bubbles.
 
-Exit criterion: pull the T-Display plug mid-session, the dashboard recovers cleanly when it returns. Submit empty or huge chat messages, the backend rejects them with a friendly error.
+Exit criterion: download the CSV mid-session and confirm the schema; ask Kirby to find clinics in Singapore and verify Places returns real polyclinics; pull the T-Display plug and watch the dashboard recover.
 
-## Phase 5: Deferred
-
-Items that are out of scope for the first build:
-- Cloud database for long-term history
-- Multi-user authentication
-- Direct T-Display to cloud upload (firmware change)
-- Real-time PPG analysis on the backend (FFT, HRV, irregularity detection)
-- ECG sensor integration (blocked by T-Display memory)
-
-Revisit after Phase 4 ships and the supervisor and industry partner have given feedback.
-
-
-## Phase 5: Telegram Mobile Handoff for Booking
+## Phase 5: Telegram Mobile Handoff for Booking [DONE]
 
 Goal: when the user asks to book a clinic appointment, push a Telegram card with inline buttons to their phone so they can authenticate via Singpass on mobile.
 
 Backend:
-- `flask_web_app/telegram_bot.py` exposes `send_booking_card(name, maps_url, address)`. Reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` at call time.
-- `llm.py` adds `_is_booking_query` and `_extract_clinic_from_history`. `continue_chat` fires `send_booking_card` on a background thread and seeds Kirby's reply with a handoff prompt.
-- Bot identity: @medicalAppointmentBookingBot, registered as Kirby with @BotFather.
-- For MVP, `TELEGRAM_CHAT_ID` is hardcoded for one tester. Multi-user linking is deferred.
+- `flask_web_app/telegram_bot.py::send_booking_card(clinic_name, maps_url="", website_url="")` reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` at call time. Card has two URL buttons: "📍 View on Maps" and "🏥 Visit Clinic Website" (Maps-only when no website).
+- `llm.py` exposes a Claude tool `send_booking_to_telegram(clinic_name, maps_url, website_url)`. Kirby calls it; `_invoke` dispatches one tool-use round trip and feeds the result back as a `ToolMessage`.
+- Bot identity: `@medicalAppointmentBookingBot`, persona Kirby (same identity as the web chat).
 
 Frontend:
 - No changes. Kirby's text reply tells the user to check their phone. Web Speech speaks it aloud.
 
-Exit criterion: in chat, after Kirby has listed clinics, type "book me an appointment at <clinic name>". Within 2 seconds the tester's phone receives a Telegram card with two working buttons. The web chat shows Kirby's handoff acknowledgment.
+Exit criterion: in chat, after Kirby has listed clinics, type "book me at <name>". Within 2 seconds the tester's phone receives a Telegram card with the two working buttons. The web chat shows Kirby's "You chose ..." confirmation.
 
-
-## Phase 6: Telegram Bot as a Second Surface
+## Phase 6: Telegram Bot as a Second Surface [DONE]
 
 Goal: the user can open @medicalAppointmentBookingBot, tap My Vitals to see live BPM and SpO2 with a chart, or tap Chat with Kirby to ask anything they would ask on the web. Booking still pushes the existing card with View on Maps and Visit Clinic Website buttons.
 
@@ -127,8 +113,20 @@ Backend:
 - The web app is untouched. No route changes. No template changes.
 
 Frontend (the bot):
-- A persistent reply keyboard with three buttons: My Vitals, Chat with Kirby, Help.
-- /start, /help, /status commands.
+- A persistent reply keyboard with three labelled buttons: 💓 My Vitals, 🐾 Chat with Kirby, 💡 Help.
+- `/start`, `/help`, `/status`, `/menu` commands.
 - The existing booking card (Phase 5) is the booking output for both web and Telegram.
+- `TELEGRAM_EMOJI_DIRECTIVE` injects a per-turn instruction telling Kirby to use 1-3 contextually relevant emojis on Telegram only; the web app stays emoji-free.
 
-Exit criterion: with `TELEGRAM_POLLING_ENABLED=true`, send `/start` to the bot. The keyboard appears. Tap My Vitals: a chart and current readings appear. Tap Chat with Kirby, type "find clinics near me", share location via Telegram attachment, Kirby lists clinics, type "book the first one", the booking card arrives in the same chat.
+Exit criterion: with `TELEGRAM_POLLING_ENABLED=true`, send `/start` to the bot. The keyboard appears. Tap 💓 My Vitals: a chart and current readings appear. Tap 🐾 Chat with Kirby, ask wellness questions, ask for clinics, then "book the first one", the booking card arrives in the same chat.
+
+## Phase 7: Deferred
+
+Out of scope for this build, revisit after partner feedback:
+- Cloud database for long-term history
+- Multi-user authentication and per-user `TELEGRAM_CHAT_ID` resolution
+- Direct T-Display to cloud upload (firmware change)
+- Real-time PPG analysis on the backend (FFT, HRV, irregularity detection)
+- ECG sensor integration (blocked by T-Display memory)
+- Movement-based restless detection (requires firmware to re-emit `movement`)
+- Capturing `update["message"]["location"]` so Kirby can do clinic search from a Telegram-shared location

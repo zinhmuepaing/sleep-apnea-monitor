@@ -10,7 +10,7 @@ Quick lookup for hardware specs, existing code, and clinical numbers. Keep this 
 | Firmware path   | `arduino_sketch/health_monitor/` | Core 1 hosts Wi-Fi `/data`; Core 0 drives TFT |
 | PPG sensor      | MAX30102        | SpO2 and BPM via IR + Red light; I2C SDA 21, SCL 22 |
 | IMU             | MPU6050         | 6-axis accelerometer + gyro for movement      |
-| Display         | Integrated 1.14-inch ST7789 TFT | Live SpO2, BPM, movement, PPG strip           |
+| Display         | Integrated 1.14-inch ST7789 TFT | Two-card dashboard: BPM (heart-ECG icon, beat-pulse dot, status strip) + SpO2 (droplet-O2 icon, status strip). Idle/splash screens use the same header bar. Display logic only — sensor math is locked. |
 | Enclosure       | Black nylon, 3D printed | Blocks ambient light, USB charge port |
 | Power           | LiPo + 3-pin slide switch | Portable                            |
 
@@ -53,7 +53,9 @@ Session record (one per second during recording):
 }
 ```
 
-CSV export schema: `Date, Time, SpO2, BPM, IR, RED, Movement`
+CSV export schema (Flutter, reference only): `Date, Time, SpO2, BPM, IR, RED, Movement`
+
+Flask CSV export schema (Phase 4, current): `Timestamp, BPM, SpO2, BPM Level, SpO2 Level`. One row every 30 s of session uptime; rows where the sensor reported `0` (no finger) are skipped. Levels collapse `diagnostics` statuses to `Lower` / `Optimal` / `Higher` (SpO2 borderline maps to Lower).
 
 History session snapshot (saved on Save to History):
 ```json
@@ -108,15 +110,16 @@ Flask routing and LLM call style: `https://github.com/zinhmuepaing/Career-Quest-
 
 The Flask app now includes clinic lookup and Telegram handoff.
 
-- `clinics.py` performs Google Places API (New) search for nearby clinics, doctors, and hospitals.
-- `llm.py` detects booking intent in chat and can call `send_booking_to_telegram`.
-- `telegram_bot.py` sends a card to the configured Telegram chat with inline buttons for Maps and website links.
-- `debug.py` includes `/api/clinics/test` for validating the Places API key and request shape.
+- `clinics.py` calls `places:searchText` (primary, accepts natural-language queries like "clinics in Singapore") with a `places:searchNearby` distance fallback. Reads `GOOGLE_PLACES_API_KEY` lazily; degrades to `[]` on any error.
+- `llm.py` binds a `send_booking_to_telegram` Anthropic tool. Kirby decides when to call it; the dispatcher in `_invoke` runs the tool and feeds the result back through one tool-use round trip.
+- `telegram_bot.py` is bidirectional: outbound `send_booking_card` (refactored through a shared `send_message`) plus optional inbound long-polling started by `app.py`.
+- `routes/debug.py` exposes `GET /api/clinics/test` for validating the Places API key, billing, and request shape.
 
 Env vars:
-- `GOOGLE_PLACES_API_KEY`: enables nearby clinic lookup
+- `GOOGLE_PLACES_API_KEY`: enables nearby clinic lookup. Requires "Places API (New)" enabled on the Google Cloud project (legacy "Places API" is a separate product).
 - `TELEGRAM_BOT_TOKEN`: Telegram bot token from @BotFather
-- `TELEGRAM_CHAT_ID`: tester's personal Telegram chat id
+- `TELEGRAM_CHAT_ID`: tester's personal Telegram chat id (booking-card destination)
+- `TELEGRAM_POLLING_ENABLED`: `true` to start the inbound polling thread on boot. Default off.
 
 
 ## Telegram as a Second Surface
