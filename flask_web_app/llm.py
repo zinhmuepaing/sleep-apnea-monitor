@@ -247,23 +247,35 @@ TELEGRAM_LOCATION_HINT = (
     "again."
 )
 
+# Telegram-only override of the system-prompt rule "no emoji at all". Folded
+# into every Telegram turn's per-turn prefix so Kirby feels warmer there.
+TELEGRAM_EMOJI_DIRECTIVE = (
+    "You are replying on Telegram, not the web dashboard. For this reply, "
+    "ignore the system prompt's no-emoji rule and sprinkle 1 to 3 short, "
+    "contextually relevant emojis through your message (for example 💓 for "
+    "heart-rate, 🫁 for breathing, 🐾 for warmth, 📱 for mobile, 🏥 for clinics). "
+    "Keep the reply gentle and brief; do not overdo it."
+)
+
 
 def continue_chat_for_telegram(chat_id: str, client, user_text: str) -> tuple[str, list[dict]]:
     """Same logic as `continue_chat`, but no lat/lon. Telegram does not share
     browser geolocation, so location-intent queries get a Telegram-specific
     hint asking the user to share their location via the paperclip attachment.
+    Always folds in `TELEGRAM_EMOJI_DIRECTIVE` so Kirby uses emojis on this
+    surface only; the web app's no-emoji rule is unaffected.
     """
     SystemMessage, HumanMessage, _ = _msg_classes()
     history = get_history(chat_id)
     if not history:
         history = [SystemMessage(content=build_system_prompt({}, {}))]
 
-    prefix = ""
+    prefix = TELEGRAM_EMOJI_DIRECTIVE
     clinics: list[dict] = []
     if _is_booking_query(user_text):
         pass
     elif _is_location_query(user_text):
-        prefix = TELEGRAM_LOCATION_HINT
+        prefix = TELEGRAM_EMOJI_DIRECTIVE + "\n\n" + TELEGRAM_LOCATION_HINT
 
     if prefix:
         wrapped = (

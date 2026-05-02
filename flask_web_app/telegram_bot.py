@@ -49,11 +49,16 @@ _polling_lock = threading.Lock()
 _CHAT_MODE: dict[int, bool] = {}
 
 # Persistent reply keyboard. Telegram remembers the last keyboard shown.
+# Labels carry leading emojis for Telegram only; the web UI stays emoji-free.
+LABEL_VITALS = "💓 My Vitals"
+LABEL_CHAT = "🐾 Chat with Kirby"
+LABEL_HELP = "💡 Help"
+
 MAIN_KEYBOARD = {
     "keyboard": [
-        [{"text": "My Vitals"}],
-        [{"text": "Chat with Kirby"}],
-        [{"text": "Help"}],
+        [{"text": LABEL_VITALS}],
+        [{"text": LABEL_CHAT}],
+        [{"text": LABEL_HELP}],
     ],
     "resize_keyboard": True,
     "is_persistent": True,
@@ -376,7 +381,7 @@ def _dispatch_update(app, update: dict) -> None:
         with app.app_context():
             _send_welcome(chat_id)
         return
-    if text in ("/help", "Help"):
+    if text in ("/help", "Help", LABEL_HELP):
         _CHAT_MODE.pop(chat_id, None)
         _send_help(chat_id)
         return
@@ -390,16 +395,16 @@ def _dispatch_update(app, update: dict) -> None:
         with app.app_context():
             _send_welcome(chat_id)
         return
-    if text == "My Vitals":
+    if text in ("My Vitals", LABEL_VITALS):
         _CHAT_MODE.pop(chat_id, None)
         with app.app_context():
             _handle_my_vitals(chat_id)
         return
-    if text == "Chat with Kirby":
+    if text in ("Chat with Kirby", LABEL_CHAT):
         _CHAT_MODE[chat_id] = True
         send_message(
             chat_id,
-            _escape_md_v2("Kirby is listening. Send me a message."),
+            _escape_md_v2("Kirby is listening 🐾 Send me a message."),
             reply_markup=MAIN_KEYBOARD,
         )
         return
@@ -425,10 +430,10 @@ def _send_welcome(chat_id) -> None:
 
 def _send_help(chat_id) -> None:
     text = _escape_md_v2(
-        "How this bot works:\n\n"
-        "- My Vitals: shows your latest BPM and SpO2 with a small chart.\n"
-        "- Chat with Kirby: ask wellness questions, find clinics, book appointments.\n"
-        "- Booking happens on health.gov.sg via Singpass on mobile.\n\n"
+        "How this bot works ✨\n\n"
+        f"{LABEL_VITALS}: shows your latest BPM and SpO2 with a small chart.\n"
+        f"{LABEL_CHAT}: ask wellness questions, find clinics, book appointments.\n"
+        "Booking happens on health.gov.sg via Singpass on mobile 📱.\n\n"
         "This is wellness coaching, not medical advice."
     )
     send_message(chat_id, text, reply_markup=MAIN_KEYBOARD)
