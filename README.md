@@ -55,7 +55,8 @@ This project extends a **clinically validated** Diploma in Biomedical Engineerin
 | 🏥 | **Google Places (New)** clinic search via Text + Nearby fallback | "Find clinics in Singapore" works, not just "near me" |
 | 📲 | **Telegram booking handoff** with `📍 View on Maps` and `🏥 Visit Clinic Website` | Singpass auth is smooth on mobile, brutal on desktop |
 | 💬 | **Bidirectional Telegram bot**: 💓 My Vitals (chart), 🐾 Chat with Kirby, 💡 Help | Same Kirby brain, second surface |
-| 📊 | **CSV export** every 30 s — `Timestamp, BPM, SpO2, BPM Level, SpO2 Level` | Bring sessions to your clinician |
+| 👤 | **Onboarding modal** on first load captures Name, Age, and Activity Level — sets personalised BPM thresholds and labels CSV exports | No more guessing the user is a sedentary 30-year-old |
+| 📊 | **CSV export** every 30 s — `Timestamp, BPM, SpO2, BPM Level, SpO2 Level`; filename includes Name + Age | Bring sessions to your clinician |
 | 🎨 | **Glass-morphism dashboard** with animated orb trigger, Kirby + user avatars | Pleasant to live with, day after day |
 
 ---
@@ -142,7 +143,8 @@ Open <http://localhost:5000>. Click the **Ask Kirby** orb-pill bottom-right to c
 | 4 | Polishing: CSV export, clinic lookup, UI refresh | ✅ |
 | 5 | Telegram booking handoff (Claude tool-use) | ✅ |
 | 6 | Telegram bot as a second surface | ✅ |
-| 7 | Cloud DB, multi-user, ECG, HRV | ⏸ Deferred |
+| 7 | User onboarding modal (Name, Age, Activity) | ✅ |
+| 8 | Cloud DB, multi-user, ECG, HRV | ⏸ Deferred |
 
 See [`PLAN.md`](PLAN.md) for the full per-phase exit criteria.
 
@@ -178,6 +180,8 @@ The on-device TFT shows two cards: BPM (red heart-ECG icon, beat-pulse dot, stat
 ---
 
 ## 💬 Kirby on the web
+
+On first load, a modal prompts for Name, Age, and Activity Level. The dashboard behind it is blurred and inaccessible until the form is submitted. Age sets the BPM band: pediatric users (ages 0-11) use clinical reference ranges; adults use the activity-aware table. The session cookie carries the profile across page refreshes; closing the browser re-prompts on the next visit.
 
 The dashboard polls `/api/verdict` at 1 Hz and renders two live Chart.js streams. When an anomaly fires (e.g. SpO<sub>2</sub> ≤ 92 % for 30 s), the chat panel auto-opens and Kirby asks a single, gentle lifestyle question.
 

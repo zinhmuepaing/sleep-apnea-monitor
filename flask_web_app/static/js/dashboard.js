@@ -442,6 +442,99 @@ function setupVoiceInput() {
 
 setupVoiceInput();
 
-setStatus("idle", "starting…");
-pollLoop();
-setInterval(pollLoop, POLL_MS);
+// Onboarding modal: blocks polling until the user submits Name + Age + Activity
+// (or until we confirm the session already has a profile from a previous load).
+const onboardingModalEl = document.getElementById("onboarding-modal");
+const onboardingFormEl = document.getElementById("onboarding-form");
+const onboardingNameEl = document.getElementById("onboarding-name");
+const onboardingAgeEl = document.getElementById("onboarding-age");
+const onboardingActivityEl = document.getElementById("onboarding-activity");
+const onboardingSaveEl = document.getElementById("onboarding-save");
+const onboardingErrorEl = document.getElementById("onboarding-error");
+
+function isOnboardingValid() {
+  const name = onboardingNameEl.value.trim();
+  const ageRaw = onboardingAgeEl.value.trim();
+  const age = Number.parseInt(ageRaw, 10);
+  const activity = onboardingActivityEl.value;
+  return name.length > 0
+    && ageRaw !== "" && Number.isInteger(age) && age >= 1 && age <= 120
+    && activity !== "";
+}
+
+function refreshOnboardingSaveState() {
+  onboardingSaveEl.disabled = !isOnboardingValid();
+}
+
+function showOnboarding() {
+  document.body.classList.add("modal-open");
+  onboardingModalEl.classList.remove("modal-hidden");
+  // Focus name first time the modal opens.
+  setTimeout(() => onboardingNameEl.focus(), 0);
+}
+
+function hideOnboarding() {
+  document.body.classList.remove("modal-open");
+  onboardingModalEl.classList.add("modal-hidden");
+}
+
+[onboardingNameEl, onboardingAgeEl, onboardingActivityEl].forEach((el) => {
+  el.addEventListener("input", refreshOnboardingSaveState);
+  el.addEventListener("change", refreshOnboardingSaveState);
+});
+
+// Block Escape while the modal is open. No close button is rendered.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.body.classList.contains("modal-open")) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}, true);
+
+onboardingFormEl.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!isOnboardingValid()) return;
+  onboardingSaveEl.disabled = true;
+  onboardingErrorEl.textContent = "";
+  try {
+    const body = await postJson("/api/profile", {
+      name: onboardingNameEl.value.trim(),
+      age: Number.parseInt(onboardingAgeEl.value, 10),
+      activity: onboardingActivityEl.value,
+    });
+    if (!body.ok) {
+      onboardingErrorEl.textContent = body.error || "Could not save profile.";
+      onboardingSaveEl.disabled = false;
+      return;
+    }
+    hideOnboarding();
+    startPolling();
+  } catch (err) {
+    onboardingErrorEl.textContent = err.message || "Network error. Try again.";
+    onboardingSaveEl.disabled = false;
+  }
+});
+
+let pollingStarted = false;
+function startPolling() {
+  if (pollingStarted) return;
+  pollingStarted = true;
+  setStatus("idle", "starting…");
+  pollLoop();
+  setInterval(pollLoop, POLL_MS);
+}
+
+(async function bootstrap() {
+  try {
+    const res = await fetch("/api/profile", { cache: "no-store" });
+    const body = await res.json();
+    if (body && body.ok && body.set) {
+      hideOnboarding();
+      startPolling();
+      return;
+    }
+  } catch (_e) {
+    // Network or server hiccup: still show the modal so the user can proceed.
+  }
+  showOnboarding();
+})();

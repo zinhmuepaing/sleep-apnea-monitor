@@ -120,7 +120,27 @@ Frontend (the bot):
 
 Exit criterion: with `TELEGRAM_POLLING_ENABLED=true`, send `/start` to the bot. The keyboard appears. Tap 💓 My Vitals: a chart and current readings appear. Tap 🐾 Chat with Kirby, ask wellness questions, ask for clinics, then "book the first one", the booking card arrives in the same chat.
 
-## Phase 7: Deferred
+## Phase 7: User Onboarding Modal [DONE]
+
+Goal: capture Name, Age, and Activity Level on first page load so thresholds and CSV filenames are personalised from the first sample.
+
+Backend:
+- `routes/profile.py` blueprint: `GET /api/profile` returns `{ok, set, profile}` so the frontend can skip the modal if the session already has a profile. `POST /api/profile` validates `{name, age, activity}` and writes to `flask.session["profile"]`. Persists for the lifetime of the browser session cookie.
+- `diagnostics.py` `Profile` dataclass gains a `name` field (default `"user"`). `bpm_band()` now branches on age first: ages 0-3 use 80-130 BPM; ages 4-11 use 75-118 BPM; ages 12+ continue to use the activity-aware `BPM_TABLE`.
+- `routes/_profile.py` reads `name` from session and adds it to the `Profile` object.
+- `routes/export.py` CSV filename changes from `health_session_<timestamp>.csv` to `health_<name>_age<age>_<timestamp>.csv`.
+
+Frontend:
+- `templates/index.html` renders the modal as the first element of `<body>`. Body opens with class `modal-open` to blur the dashboard from first paint, eliminating any flash of unblurred content.
+- Modal shows a reference table (four age-band rows) and three fields: Name, Age, Activity Level (dropdown).
+- Save Changes button is disabled until all three fields contain valid data (name 1-60 chars, age integer 1-120, activity selected).
+- No close button, no Escape key, no backdrop click. The dashboard is inaccessible until the form is submitted.
+- On success, the modal hides and the poll loop starts.
+- On refresh, `GET /api/profile` runs first: if the session cookie is still valid, the modal is skipped and polling starts immediately.
+
+Exit criterion: open the app in a fresh incognito tab, the modal appears, dashboard is blurred. Fill in all fields; Save enables. Click Save; modal closes and live vitals begin. Refresh; modal does not reappear. Download CSV; filename includes name and age. Set age to 2; verify `/api/verdict` reports a BPM band of 80-130.
+
+## Phase 8: Deferred
 
 Out of scope for this build, revisit after partner feedback:
 - Cloud database for long-term history

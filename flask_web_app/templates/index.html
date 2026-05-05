@@ -7,9 +7,57 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
-<body data-poll-ms="{{ polling_interval_ms }}"
+<body class="modal-open"
+      data-poll-ms="{{ polling_interval_ms }}"
       data-kirby-avatar="{{ url_for('static', filename='img/kirby.png') }}"
       data-user-avatar="{{ url_for('static', filename='img/user.png') }}">
+
+  <div id="onboarding-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div class="modal-card">
+      <h2 id="onboarding-title" class="modal-title">Welcome. Let's calibrate.</h2>
+      <p class="modal-disclaimer">
+        Your name and age calibrate baseline heart-rate and SpO<sub>2</sub> thresholds, and label your CSV exports.
+      </p>
+
+      <div class="modal-table-wrap">
+        <table class="modal-table">
+          <thead>
+            <tr><th>Age range</th><th>BPM</th><th>SpO<sub>2</sub></th></tr>
+          </thead>
+          <tbody>
+            <tr><td>0&ndash;3 yrs (Infants/Toddlers)</td><td>80&ndash;130</td><td>95&ndash;100%</td></tr>
+            <tr><td>4&ndash;11 yrs (Children)</td><td>75&ndash;118</td><td>95&ndash;100%</td></tr>
+            <tr><td>12&ndash;64 yrs (Teens/Adults)</td><td>60&ndash;100</td><td>95&ndash;100%</td></tr>
+            <tr><td>65+ yrs (Seniors)</td><td>60&ndash;100</td><td>95&ndash;100%*</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <form id="onboarding-form" class="modal-form" novalidate>
+        <label class="modal-field">
+          <span class="modal-label">Name</span>
+          <input id="onboarding-name" type="text" maxlength="60" autocomplete="name" required>
+        </label>
+        <label class="modal-field">
+          <span class="modal-label">Age</span>
+          <input id="onboarding-age" type="number" inputmode="numeric" min="1" max="120" step="1" required>
+        </label>
+        <label class="modal-field">
+          <span class="modal-label">Activity level</span>
+          <select id="onboarding-activity" required>
+            <option value="" disabled selected>Choose one</option>
+            <option value="sedentary">Sedentary</option>
+            <option value="lightly_active">Lightly active</option>
+            <option value="moderately_active">Moderately active</option>
+            <option value="very_active">Very active</option>
+          </select>
+        </label>
+        <p id="onboarding-error" class="modal-error" role="alert"></p>
+        <button id="onboarding-save" type="submit" class="modal-save" disabled>Save Changes</button>
+      </form>
+    </div>
+  </div>
+
   <header class="topbar">
     <h1>Health Monitor Dashboard</h1>
     <div class="status">

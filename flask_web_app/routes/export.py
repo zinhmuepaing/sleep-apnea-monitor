@@ -68,7 +68,8 @@ def export_csv():
         spo2_lvl = _SPO2_LEVEL.get(spo2_status(s.spo2), "Optimal")
         writer.writerow([ts, s.bpm, f"{s.spo2:.1f}", bpm_lvl, spo2_lvl])
 
-    filename = f"health_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    safe_name = "".join(c for c in profile.name if c.isalnum() or c in "-_")[:30] or "user"
+    filename = f"health_{safe_name}_age{profile.age}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
     return Response(
         out.getvalue(),
         mimetype="text/csv",

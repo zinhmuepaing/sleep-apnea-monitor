@@ -55,7 +55,7 @@ Session record (one per second during recording):
 
 CSV export schema (Flutter, reference only): `Date, Time, SpO2, BPM, IR, RED, Movement`
 
-Flask CSV export schema (Phase 4, current): `Timestamp, BPM, SpO2, BPM Level, SpO2 Level`. One row every 30 s of session uptime; rows where the sensor reported `0` (no finger) are skipped. Levels collapse `diagnostics` statuses to `Lower` / `Optimal` / `Higher` (SpO2 borderline maps to Lower).
+Flask CSV export schema (current): `Timestamp, BPM, SpO2, BPM Level, SpO2 Level`. One row every 30 s of session uptime; rows where the sensor reported `0` (no finger) are skipped. Levels collapse `diagnostics` statuses to `Lower` / `Optimal` / `Higher` (SpO2 borderline maps to Lower). Filename: `health_<name>_age<age>_<timestamp>.csv` (name and age come from the onboarding modal; sanitised to alphanumerics + hyphens, max 30 chars).
 
 History session snapshot (saved on Save to History):
 ```json
@@ -105,6 +105,18 @@ Flask routing and LLM call style: `https://github.com/zinhmuepaing/Career-Quest-
 - HRV: Heart rate variability (future scope)
 - SMA: Simple moving average
 - IMU: Inertial measurement unit
+
+## Onboarding Modal and Profile
+
+The web dashboard requires Name, Age, and Activity Level before polling begins. These are captured via an auto-loading modal that blocks the dashboard until submitted. The form cannot be dismissed.
+
+- `routes/profile.py`: `GET /api/profile` checks if a profile is in the session; `POST /api/profile` validates and saves `{name, age, activity}`.
+- The Flask session cookie carries the profile for the duration of the browser session. Closing and reopening the browser re-prompts the modal.
+- `diagnostics.py` BPM band logic branches on age before consulting the activity table:
+  - Ages 0-3: 80-130 BPM
+  - Ages 4-11: 75-118 BPM
+  - Ages 12+: existing activity-aware `BPM_TABLE` (sedentary through very active)
+- SpO2 thresholds are unchanged (normal >= 95 %, borderline 92-94 %, low < 92 %).
 
 ## Service Integration Notes
 

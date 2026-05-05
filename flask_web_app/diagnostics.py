@@ -32,6 +32,7 @@ class Profile:
     age: int
     activity: str   # one of BPM_TABLE keys
     exercise: str   # free-text label, surfaced to the LLM only
+    name: str = "user"   # captured by the onboarding modal; used for CSV labelling
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,12 @@ def spo2_status(spo2: float) -> str:
 
 
 def bpm_band(profile: Profile) -> tuple[int, int]:
+    # Pediatric ranges (per onboarding modal reference table) take precedence
+    # over the activity table because resting BPM differs sharply for children.
+    if profile.age < 4:
+        return 80, 130
+    if profile.age < 12:
+        return 75, 118
     row = BPM_TABLE.get(profile.activity, BPM_TABLE[ACTIVITY_DEFAULT])
     high = row["high_under_20"] if profile.age < 20 else row["high_20_plus"]
     return row["low"], high

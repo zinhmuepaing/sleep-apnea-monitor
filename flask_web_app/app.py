@@ -10,6 +10,7 @@ from config import Config
 from routes.chat import bp as chat_bp
 from routes.debug import bp as debug_bp
 from routes.export import bp as export_bp
+from routes.profile import bp as profile_bp
 from routes.vitals import bp as vitals_bp
 from routes.verdict import bp as verdict_bp
 
@@ -21,6 +22,7 @@ def create_app() -> Flask:
     app.register_blueprint(verdict_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(export_bp)
+    app.register_blueprint(profile_bp)
     app.register_blueprint(debug_bp)
 
     @app.get("/")

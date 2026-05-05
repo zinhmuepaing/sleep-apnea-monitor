@@ -17,4 +17,5 @@ def get_profile() -> Profile:
         age=int(p.get("age", 30)),
         activity=str(p.get("activity", "sedentary")),
         exercise=str(p.get("exercise", "unknown")),
+        name=str(p.get("name", "")).strip() or "user",
     )
