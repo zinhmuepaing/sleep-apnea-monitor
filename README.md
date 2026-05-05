@@ -220,11 +220,7 @@ The booking flow is identical across surfaces: Kirby's tool call pushes a card w
 
 ## 🙏 Acknowledgements
 
-Original BME capstone:
-
-- **BME team:** Andrea Rudd, Wong Xin Hui
 - **Supervisor:** Raja Rangaswamy (TP), Shankarappa KUMBAR (TP)
-- **Industry partner:** Dr. Baey (SleepEasy Clinic)
 
 Flask routing and LLM call style mirror [`zinhmuepaing/Career-Quest-Map`](https://github.com/zinhmuepaing/Career-Quest-Map).
 
