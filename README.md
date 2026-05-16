@@ -183,7 +183,7 @@ GET http://<ESP_IP>/data
 The on-device TFT shows two cards: BPM (red heart-ECG icon, beat-pulse dot, status strip) and SpO<sub>2</sub> (cyan droplet with `O2` subscript, status strip). Idle and Wi-Fi splash use the same header bar. **All sensor math is locked**; only the display layer was redesigned.
 
 > [!WARNING]
-> Clinical validation against a LePu commercial pulse oximeter: SpO<sub>2</sub> deviation ≈ ±2 %, BPM deviation ≈ ±3. Kirby's prompt is constrained never to claim higher precision than the sensor delivers.
+> Clinical validation against a LePu commercial pulse oximeter: SpO<sub>2</sub> deviation ≈ ±1 %, BPM deviation ≈ ±2. Kirby's prompt is constrained never to claim higher precision than the sensor delivers.
 
 ---
 
