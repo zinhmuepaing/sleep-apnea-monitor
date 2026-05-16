@@ -11,6 +11,7 @@
 [![Anthropic Claude](https://img.shields.io/badge/Claude-Haiku%204.5-cc785c?logo=anthropic&logoColor=white)](https://www.anthropic.com/)
 [![ESP32](https://img.shields.io/badge/ESP32-T--Display-e7352c?logo=espressif&logoColor=white)](https://www.lilygo.cc/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-26a5e4?logo=telegram&logoColor=white)](https://core.telegram.org/bots)
+[![Google Places API](https://img.shields.io/badge/Google%20Maps-4285F4?logo=googlemaps&logoColor=white)](https://developers.google.com/maps)
 [![License: TBD](https://img.shields.io/badge/license-TBD-lightgrey)](#license)
 
 </div>
@@ -233,11 +234,7 @@ The booking flow is identical across surfaces: Kirby's tool call pushes a card w
 
 ## 🙏 Acknowledgements
 
-Original BME capstone:
-
-- **BME team:** Andrea Rudd, Wong Xin Hui
 - **Supervisor:** Raja Rangaswamy (TP), Shankarappa KUMBAR (TP)
-- **Industry partner:** Dr. Baey (SleepEasy Clinic)
 
 Flask routing and LLM call style mirror [`zinhmuepaing/Career-Quest-Map`](https://github.com/zinhmuepaing/Career-Quest-Map).
 
