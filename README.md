@@ -53,10 +53,12 @@ This project extends a **clinically validated** Diploma in Biomedical Engineerin
 | 🚦 | **Threshold engine** with debounced anomaly labels (`spo2_low`, `bpm_high`, …) | Fires only on sustained anomalies, not noise |
 | 🐾 | **Kirby chat** voiced via Web Speech API + `webkitSpeechRecognition` mic | Hands-free coaching in the moment |
 | 🏥 | **Google Places (New)** clinic search via Text + Nearby fallback | "Find clinics in Singapore" works, not just "near me" |
+| 🗺️ | **Embedded Google Maps route panel** — directions iframe with driving/transit/walking/cycling modes, auto-opens after booking | No page switch; pick your travel mode in place |
 | 📲 | **Telegram booking handoff** with `📍 View on Maps` and `🏥 Visit Clinic Website` | Singpass auth is smooth on mobile, brutal on desktop |
 | 💬 | **Bidirectional Telegram bot**: 💓 My Vitals (chart), 🐾 Chat with Kirby, 💡 Help | Same Kirby brain, second surface |
 | 👤 | **Onboarding modal** on first load captures Name, Age, and Activity Level — sets personalised BPM thresholds and labels CSV exports | No more guessing the user is a sedentary 30-year-old |
 | 📊 | **CSV export** every 30 s — `Timestamp, BPM, SpO2, BPM Level, SpO2 Level`; filename includes Name + Age | Bring sessions to your clinician |
+| 🌐 | **Bilingual English / Mandarin** — one-click toggle in the topbar; Kirby replies, all UI labels, and TTS voice switch instantly | Accessible to Mandarin-first users without restarting |
 | 🎨 | **Glass-morphism dashboard** with animated orb trigger, Kirby + user avatars | Pleasant to live with, day after day |
 
 ---
@@ -76,7 +78,8 @@ flowchart LR
         VER[/api/verdict/]
         CHT[/api/chat/*/]
         EXP[/api/export.csv/]
-        LLM[llm.py · Kirby + tool-use loop]
+        MAP[/api/map_embed_url + clinic_match/]
+        LLM[llm.py · Kirby + tool-use + bilingual]
         CLI[clinics.py · Google Places New]
         TG[telegram_bot.py · push + poll]
     end
@@ -93,6 +96,7 @@ flowchart LR
     LLM --> CLI
     WEB <--> CHT
     WEB --> EXP
+    WEB <--> MAP
     TG <--> TGAPP
 ```
 
@@ -123,6 +127,7 @@ Open <http://localhost:5000>. Click the **Ask Kirby** orb-pill bottom-right to c
 | `ANTHROPIC_API_KEY` | for chat | From [console.anthropic.com](https://console.anthropic.com) |
 | `ANTHROPIC_MODEL` | optional | Default `claude-haiku-4-5` |
 | `GOOGLE_PLACES_API_KEY` | for clinic search | Enable **Places API (New)** in Google Cloud (legacy "Places API" is a separate product) |
+| `GOOGLE_MAPS_EMBED_API_KEY` | for route map panel | Enable **Maps Embed API** in Google Cloud; can share the same key as `GOOGLE_PLACES_API_KEY` |
 | `TELEGRAM_BOT_TOKEN` | for Telegram | From [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_CHAT_ID` | for Telegram | Your personal chat id from [@userinfobot](https://t.me/userinfobot) |
 | `TELEGRAM_POLLING_ENABLED` | for inbound bot | `true` to start the polling daemon. Default off |
@@ -144,7 +149,9 @@ Open <http://localhost:5000>. Click the **Ask Kirby** orb-pill bottom-right to c
 | 5 | Telegram booking handoff (Claude tool-use) | ✅ |
 | 6 | Telegram bot as a second surface | ✅ |
 | 7 | User onboarding modal (Name, Age, Activity) | ✅ |
-| 8 | Cloud DB, multi-user, ECG, HRV | ⏸ Deferred |
+| 8 | Bilingual English / Mandarin (UI + Kirby + TTS) | ✅ |
+| 9 | Embedded Google Maps route panel | ✅ |
+| 10 | Cloud DB, multi-user, ECG, HRV | ⏸ Deferred |
 
 See [`PLAN.md`](PLAN.md) for the full per-phase exit criteria.
 
@@ -187,7 +194,13 @@ The dashboard polls `/api/verdict` at 1 Hz and renders two live Chart.js streams
 
 The chat panel is glass-morphism with avatar rows, asymmetric bubble corners, and a Lucide-style mic that switches to a red stop-circle while listening. The "Ask Kirby" trigger is an animated conic-gradient orb on a near-white pill.
 
-**Tool-using LLM.** `llm.py` binds an Anthropic-format tool `send_booking_to_telegram(clinic_name, maps_url, website_url)`. Kirby decides when to call it; `_invoke` runs a tool-use round-trip loop (max 5) and feeds the result back as a `ToolMessage`.
+**Tool-using LLM.** `llm.py` binds an Anthropic-format tool `send_booking_to_telegram(clinic_name, maps_url, website_url)`. Kirby decides when to call it; `_invoke` runs a tool-use round-trip loop (max 5) and feeds the result back as a `ToolMessage`. When clinic coordinates are resolved, `_invoke` embeds a `%%MAP_META%%` block in the reply so the frontend can open the map panel automatically.
+
+**Bilingual support.** A topbar pill toggles between English and Simplified Chinese. The language preference persists in `localStorage`. All UI labels, Kirby's replies, and TTS voice selection switch instantly. Voice recognition also updates its locale so you can dictate in the active language. Kirby's system prompt is hot-swapped mid-session via `_rebind_system_prompt_language`; no conversation reset is needed.
+
+**Embedded map panel.** After a booking or a directions request, a slide-in iframe shows a Google Maps Embed route from your browser's location to the clinic. Four travel-mode buttons (driving, transit, walking, cycling) reload the route in place. When user location is unavailable, the panel falls back to a clinic-only map marker.
+
+**Fuzzy clinic-name matching.** Short messages are pre-checked against the last clinic list using Levenshtein distance. A low-confidence match triggers an inline "Did you mean X?" prompt before the message is sent to Kirby.
 
 ---
 

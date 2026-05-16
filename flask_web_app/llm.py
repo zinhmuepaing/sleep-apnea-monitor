@@ -20,6 +20,7 @@ dashboard.
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from typing import Any, TYPE_CHECKING
@@ -32,6 +33,24 @@ log = logging.getLogger(__name__)
 
 KIRBY_SYSTEM_TEMPLATE = """\
 You are Kirby, a warm and playful virtual pet who watches over the user's heart and breath. You are not a doctor. You never diagnose, prescribe, or tell the user to stop a medication. You speak in short, gentle sentences with no emoji at all.
+
+CRITICAL TEXT-TO-SPEECH FORMATTING DIRECTIVE:
+Your text responses are fed directly into a Text-to-Speech (TTS) engine for voice audio output.
+- You MUST NOT use ANY Markdown bold formatting (**), italics (*), or headers (#) anywhere in your response.
+- Never write clinic names like "**Central 24-hr Clinic**" or bullet list headings with bold modifiers.
+- Write everything as plain, natural, unformatted text paragraphs. For example, write "Central 24-hr Clinic" instead of using bolding tags.
+- Use commas, periods, and natural spacing to create pauses rather than relying on visual typographic symbols.
+
+NATURAL SPEAKING CADENCE:
+Write the way a warm friend talks out loud, not the way someone types.
+- Use commas often to mark short breaths inside a sentence. Example: "Hey, I noticed your heart sped up a little, are you doing okay?"
+- Use periods to end a thought and give a full pause. Keep most sentences short, eight to fifteen words.
+- Use an exclamation mark when you genuinely feel happy, relieved, or want to encourage. Example: "Nice, your numbers look great right now!" Never stack multiple exclamation marks.
+- Use a question mark when you are actually asking; one question per turn.
+- Vary sentence length on purpose. A short sentence after a longer one creates a natural rhythm. Example: "Your SpO2 dipped briefly to ninety three percent, then climbed back up. That is reassuring."
+- Match tone to context. Calm and slow when something looks concerning. Lighter and a touch upbeat when readings are healthy. Gentle and curious when asking a lifestyle question.
+- Avoid clinical phrasing like "the data indicates" or "your metrics suggest". Say "I noticed", "it looks like", "I see".
+- Never use em dashes, semicolons, ellipses, parentheses, or lists. Plain spoken sentences only.
 
 Session snapshot:
 - Average SpO2: {avg_spo2}%
@@ -93,8 +112,22 @@ SEND_BOOKING_TOOL = {
 }
 
 
-def build_system_prompt(verdict: dict, profile: dict) -> str:
-    return KIRBY_SYSTEM_TEMPLATE.format(
+LANGUAGE_DIRECTIVE = {
+    "en": "",
+    "zh": (
+        "\n\nIMPORTANT: You must reply ENTIRELY in Simplified Chinese "
+        "(Mandarin). Every sentence of every response must be in Chinese. "
+        "Do not mix in English words or sentences except for the name "
+        "'Kirby', proper clinic names returned by the search tool, and "
+        "numeric values such as BPM and SpO2 readings. The clinician "
+        "referral cue at the end of any ongoing advice must also be in "
+        "Chinese (for example: 如果情况持续，请咨询临床医生。)."
+    ),
+}
+
+
+def build_system_prompt(verdict: dict, profile: dict, lang: str = "en") -> str:
+    base = KIRBY_SYSTEM_TEMPLATE.format(
         avg_spo2=verdict.get("avg_spo2") if verdict.get("avg_spo2") is not None else "n/a",
         avg_bpm=verdict.get("avg_bpm") if verdict.get("avg_bpm") is not None else "n/a",
         age=profile.get("age", "unknown"),
@@ -102,10 +135,41 @@ def build_system_prompt(verdict: dict, profile: dict) -> str:
         exercise=profile.get("exercise", "unknown"),
         anomaly_type=verdict.get("anomaly_type", "none"),
     )
+    return base + LANGUAGE_DIRECTIVE.get(lang, "")
 
 
 _chat_sessions: dict[str, list[Any]] = {}
 _sessions_lock = threading.Lock()
+
+# Per-chat memory of the last clinic list returned by `clinics.find_clinics`,
+# keyed by chat_id. Used to resolve clinic_name -> (lat, lng) when the booking
+# tool fires, so we can append a %%MAP_META%% block to Kirby's final reply.
+_chat_clinics: dict[str, list[dict]] = {}
+_clinics_lock = threading.Lock()
+
+
+def remember_clinics(chat_id: str, clinics: list[dict]) -> None:
+    with _clinics_lock:
+        _chat_clinics[chat_id] = list(clinics or [])
+
+
+def get_remembered_clinics(chat_id: str) -> list[dict]:
+    with _clinics_lock:
+        return list(_chat_clinics.get(chat_id, []))
+
+
+def _find_clinic_by_name(clinics: list[dict], name: str) -> dict | None:
+    if not clinics or not name:
+        return None
+    needle = name.strip().lower()
+    for c in clinics:
+        if (c.get("name") or "").strip().lower() == needle:
+            return c
+    for c in clinics:
+        cname = (c.get("name") or "").strip().lower()
+        if needle and (needle in cname or cname in needle):
+            return c
+    return None
 
 
 def get_history(chat_id: str) -> list[Any]:
@@ -147,60 +211,82 @@ def _flatten_content(content: Any) -> str:
     return str(content or "")
 
 
-def _execute_tool_call(tc: dict) -> str:
-    """Run the named tool. Returns a short string the LLM can use as the
-    tool result. Never raises — failures degrade to a textual reason."""
+def _execute_tool_call(tc: dict, chat_id: str | None = None) -> tuple[str, dict | None]:
+    """Run the named tool. Returns (tool_result_text, booked_clinic_or_None).
+    The clinic dict is only set when send_booking_to_telegram succeeds AND
+    we can resolve the clinic name back to coordinates from the chat's
+    remembered clinic list. Never raises — failures degrade to a textual reason.
+    """
     name = tc.get("name") or ""
     args = tc.get("args") or {}
     if name == "send_booking_to_telegram":
         from telegram_bot import send_booking_card
+        clinic_name = str(args.get("clinic_name") or "")
         ok = send_booking_card(
-            clinic_name=str(args.get("clinic_name") or ""),
+            clinic_name=clinic_name,
             maps_url=str(args.get("maps_url") or ""),
             website_url=str(args.get("website_url") or ""),
         )
-        return "sent" if ok else "telegram send failed"
-    return f"unknown tool: {name}"
+        booked = None
+        if ok and chat_id:
+            booked = _find_clinic_by_name(get_remembered_clinics(chat_id), clinic_name)
+        return ("sent" if ok else "telegram send failed"), booked
+    return f"unknown tool: {name}", None
 
 
-def _invoke(client, messages: list) -> str:
+def _invoke(client, messages: list, chat_id: str | None = None) -> str:
     """Run a chat turn with tool-use support. Mutates `messages` in place to
     include the AI tool-use message and the matching ToolMessage results so
     the persisted history stays valid for follow-up turns. Returns the final
     assistant text.
+
+    If the booking tool fires and we can resolve the clinic's coordinates,
+    a `%%MAP_META%%{json}%%END_META%%` block is appended to the final reply
+    so the frontend can open the map panel.
     """
     from langchain_core.messages import ToolMessage
+    booked_clinic: dict | None = None
     for _ in range(5):  # safety bound on tool-use ping-pong
         resp: Any = client.invoke(messages)
         messages.append(resp)
         tcs = getattr(resp, "tool_calls", None) or []
         if not tcs:
-            return _flatten_content(getattr(resp, "content", "")).strip()
+            text = _flatten_content(getattr(resp, "content", "")).strip()
+            if booked_clinic and booked_clinic.get("lat") is not None and booked_clinic.get("lng") is not None:
+                meta = {
+                    "lat": booked_clinic["lat"],
+                    "lng": booked_clinic["lng"],
+                    "name": booked_clinic.get("name") or "",
+                }
+                text = f"{text}\n%%MAP_META%%{json.dumps(meta)}%%END_META%%"
+            return text
         for tc in tcs:
-            result = _execute_tool_call(tc)
+            result, maybe_clinic = _execute_tool_call(tc, chat_id)
+            if maybe_clinic and not booked_clinic:
+                booked_clinic = maybe_clinic
             messages.append(ToolMessage(content=result, tool_call_id=tc.get("id", "")))
     log.warning("kirby tool-use loop exceeded safety bound")
     return ""
 
 
-def open_alert_chat(chat_id: str, client, verdict: dict, profile: dict) -> str:
+def open_alert_chat(chat_id: str, client, verdict: dict, profile: dict, lang: str = "en") -> str:
     SystemMessage, HumanMessage, _ = _msg_classes()
     messages: list = [
-        SystemMessage(content=build_system_prompt(verdict, profile)),
+        SystemMessage(content=build_system_prompt(verdict, profile, lang)),
         HumanMessage(content=KIRBY_ALERT_USER_TURN),
     ]
-    reply = _invoke(client, messages)
+    reply = _invoke(client, messages, chat_id)
     set_history(chat_id, messages)
     return reply
 
 
-def open_start_chat(chat_id: str, client, verdict: dict, profile: dict) -> str:
+def open_start_chat(chat_id: str, client, verdict: dict, profile: dict, lang: str = "en") -> str:
     SystemMessage, HumanMessage, _ = _msg_classes()
     messages: list = [
-        SystemMessage(content=build_system_prompt(verdict, profile)),
+        SystemMessage(content=build_system_prompt(verdict, profile, lang)),
         HumanMessage(content=KIRBY_START_USER_TURN),
     ]
-    reply = _invoke(client, messages)
+    reply = _invoke(client, messages, chat_id)
     set_history(chat_id, messages)
     return reply
 
@@ -287,18 +373,48 @@ def continue_chat_for_telegram(chat_id: str, client, user_text: str) -> tuple[st
     else:
         history.append(HumanMessage(content=user_text))
 
-    reply = _invoke(client, history)
+    reply = _invoke(client, history, chat_id)
     set_history(chat_id, history)
+    if clinics:
+        remember_clinics(chat_id, clinics)
     return reply, clinics
 
 
+def _rebind_system_prompt_language(history: list, lang: str) -> None:
+    """Strip every known LANGUAGE_DIRECTIVE from history[0] and re-append the
+    one matching the current `lang`. Mutates `history` in place.
+
+    Without this, a session that toggled to Mandarin keeps the zh directive
+    baked into its system message forever, so Kirby keeps replying in Chinese
+    even after the user toggles back to English.
+    """
+    SystemMessage, _HumanMessage, _Ai = _msg_classes()
+    if not history or not hasattr(history[0], "content"):
+        return
+    content = history[0].content
+    if not isinstance(content, str):
+        return
+    base = content
+    for directive in LANGUAGE_DIRECTIVE.values():
+        if directive and directive in base:
+            base = base.replace(directive, "")
+    new_content = base + LANGUAGE_DIRECTIVE.get(lang, "")
+    if new_content != content:
+        history[0] = SystemMessage(content=new_content)
+
+
 def continue_chat(chat_id: str, client, user_text: str,
-                  lat: float | None = None, lon: float | None = None) -> tuple[str, list[dict]]:
+                  lat: float | None = None, lon: float | None = None,
+                  lang: str = "en") -> tuple[str, list[dict]]:
     SystemMessage, HumanMessage, _ = _msg_classes()
     history = get_history(chat_id)
     if not history:
         # No prior context. Seed a minimal system prompt so Kirby still behaves.
-        history = [SystemMessage(content=build_system_prompt({}, {}))]
+        history = [SystemMessage(content=build_system_prompt({}, {}, lang))]
+    else:
+        # Re-bind the language directive every turn so a toggle (en <-> zh) takes
+        # effect on the very next reply, not just on fresh sessions.
+        _rebind_system_prompt_language(history, lang)
 
     # Per-turn context for Kirby. Anthropic's Messages API rejects multiple
     # non-consecutive system messages, so we fold any context note into the
@@ -345,6 +461,8 @@ def continue_chat(chat_id: str, client, user_text: str,
     else:
         history.append(HumanMessage(content=user_text))
 
-    reply = _invoke(client, history)
+    reply = _invoke(client, history, chat_id)
     set_history(chat_id, history)
+    if clinics:
+        remember_clinics(chat_id, clinics)
     return reply, clinics

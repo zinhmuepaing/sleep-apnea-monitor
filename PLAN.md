@@ -140,7 +140,55 @@ Frontend:
 
 Exit criterion: open the app in a fresh incognito tab, the modal appears, dashboard is blurred. Fill in all fields; Save enables. Click Save; modal closes and live vitals begin. Refresh; modal does not reappear. Download CSV; filename includes name and age. Set age to 2; verify `/api/verdict` reports a BPM band of 80-130.
 
-## Phase 8: Deferred
+## Phase 8: Bilingual English / Mandarin [DONE]
+
+Goal: the entire dashboard UI and Kirby's responses can be switched between English and Simplified Chinese at runtime with a single button click, without resetting the conversation or the session.
+
+Backend:
+- `llm.py` adds a `LANGUAGE_DIRECTIVE` dict (`en` maps to `""`, `zh` maps to a multi-line Mandarin instruction).
+- `build_system_prompt(verdict, profile, lang)` selects and appends the directive.
+- `_rebind_system_prompt_language(history, lang)` strips the old directive from `history[0]` and re-appends the new one every turn, so toggling mid-session takes effect on the next reply.
+- All three chat routes (`/alert`, `/start`, `/message`) read `lang` from the JSON body (`"en"` or `"zh"`) and forward it to LLM functions.
+
+Frontend:
+- `I18N` object in `dashboard.js` holds `en` and `zh` tables covering all visible UI strings.
+- `t(key)` resolves the current language table with English fallback.
+- `applyLang(lang)` re-renders all `data-i18n` and `data-i18n-placeholder` elements, flips the toggle button label ("中文" / "English"), updates `webkitSpeechRecognition.lang`, cancels any queued TTS utterances, and re-selects the best voice for the locale.
+- Language preference stored in `localStorage("kirby_lang")` and restored on boot.
+- TTS voice selection: `_voiceNaturalnessScore` scores voices by cloud/natural markers and gender hints. `_pickBestVoice` picks the highest scorer for `en-US` or `zh-CN`.
+- `speak()` handles both locales. English: single `SpeechSynthesisUtterance` with rate 1.0 / pitch 1.2, no voice override. Mandarin: split on CJK + ASCII sentence-end punctuation, each clause spoken with `_toneFor` rate/pitch shaping and the selected Mandarin voice.
+- All `postJson` payloads to `/api/chat/*` include `lang: _currentLang`.
+
+Exit criterion: switch to Mandarin; every label on the dashboard renders in Chinese; ask Kirby a health question; Kirby replies entirely in Mandarin and speaks it aloud in a natural Mandarin voice. Switch back to English; Kirby answers the next message in English without restarting the session.
+
+## Phase 9: Embedded Google Maps Route Panel [DONE]
+
+Goal: after booking a clinic through Kirby, or when directions are needed, an embedded Google Maps directions iframe slides in inside the dashboard. The user can switch travel mode without leaving the page.
+
+Backend:
+- `routes/map_nav.py` blueprint registered in `app.py`:
+  - `POST /api/map_embed_url` validates `{clinic_lat, clinic_lng, user_lat, user_lng, mode}` (mode must be `driving`, `transit`, `walking`, or `bicycling`; coordinates validated as finite floats in range) and returns `{ok, embed_url}` using the Google Maps Embed API directions endpoint. Requires `GOOGLE_MAPS_EMBED_API_KEY` in env.
+  - `POST /api/clinic_match` fuzzy-matches `{query}` against `session["last_clinics"]` using Levenshtein distance (pure-Python fallback; uses `python-Levenshtein` if installed). Returns `{ok, match, candidates, confident}`. `confident=true` when distance is 0 or query is a substring of the name; `confident=false` when distance is 1-4; no match above 4.
+- `llm.py` additions:
+  - `_chat_clinics` dict and `remember_clinics` / `get_remembered_clinics` track the last clinic list per `chat_id`.
+  - `_find_clinic_by_name` resolves a name to a clinic dict from the remembered list.
+  - When `send_booking_to_telegram` fires and clinic coordinates are resolved, `_invoke` appends `%%MAP_META%%{"lat":…,"lng":…,"name":"…"}%%END_META%%` to Kirby's final reply.
+- `routes/chat.py`: stores `last_clinics` in `session["last_clinics"]` whenever a clinic list is returned, so `clinic_match` can serve it.
+- New env var: `GOOGLE_MAPS_EMBED_API_KEY`. Can share the same Google Cloud key as `GOOGLE_PLACES_API_KEY` if both APIs are enabled.
+
+Frontend:
+- `index.html`: `#map-panel` slide-in div with mode buttons (driving / transit / walking / cycling), `#map-iframe`, and an X close button. Fully translated via `data-i18n`.
+- `dashboard.js`:
+  - `extractMapMeta(reply)` strips `%%MAP_META%%…%%END_META%%` from Kirby's reply and returns `{text, meta}`.
+  - `maybeOpenMapFromReply(cleanText, meta)` opens the map when `meta` contains valid coordinates; falls back to a regex on Kirby's confirmation text.
+  - `openMapPanel(clinicName, clinicLat, clinicLng)` resolves user position, stores `_mapState`, and calls `loadMapIframe("driving")`.
+  - `loadMapIframe(mode)` POSTs to `/api/map_embed_url`; on error or missing user location, falls back to a clinic-only embed (`maps?q=lat,lng&output=embed`).
+  - Mode buttons re-call `loadMapIframe` on click and toggle the `.active` class.
+  - Fuzzy-match pre-check: messages 3-60 chars long (not starting with `/`) POST to `/api/clinic_match` before sending. `confident=false` shows a "Did you mean X? yes/no" inline prompt; `yes` substitutes the corrected name and sends; `no` clears the state.
+
+Exit criterion: in chat, ask Kirby for clinics, then "book me at [name]". The Telegram card arrives on the phone. The map panel slides in with a driving-mode route to the clinic. Switching mode reloads the iframe. Closing the panel resets the iframe src to `about:blank`. Retype a clinic name with a typo; the fuzzy-match prompt appears; confirm; the booking proceeds.
+
+## Phase 10: Deferred
 
 Out of scope for this build, revisit after partner feedback:
 - Cloud database for long-term history

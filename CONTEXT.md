@@ -129,10 +129,49 @@ The Flask app now includes clinic lookup and Telegram handoff.
 
 Env vars:
 - `GOOGLE_PLACES_API_KEY`: enables nearby clinic lookup. Requires "Places API (New)" enabled on the Google Cloud project (legacy "Places API" is a separate product).
+- `GOOGLE_MAPS_EMBED_API_KEY`: enables the embedded route map panel. Requires "Maps Embed API" enabled in Google Cloud. Can be the same key as `GOOGLE_PLACES_API_KEY` if both APIs are enabled on it.
 - `TELEGRAM_BOT_TOKEN`: Telegram bot token from @BotFather
 - `TELEGRAM_CHAT_ID`: tester's personal Telegram chat id (booking-card destination)
 - `TELEGRAM_POLLING_ENABLED`: `true` to start the inbound polling thread on boot. Default off.
 
+
+## Bilingual Support (English / Mandarin)
+
+The dashboard and Kirby chat support English and Simplified Chinese (Mandarin). The current language is toggled via a pill button in the topbar and persisted in `localStorage` under the key `kirby_lang`.
+
+Frontend (`dashboard.js`):
+- `I18N` object holds `en` and `zh` translation tables for every visible string.
+- `applyLang(lang)` re-renders all `data-i18n` elements, updates `webkitSpeechRecognition.lang`, cancels queued TTS, and re-selects the best TTS voice for the locale.
+- `_pickBestVoice` scores voices by naturalness (cloud/natural > local) and selects the top match for `en-US` or `zh-CN`.
+- `speak()` handles both locales: English uses a simple browser-default utterance (rate 1.0, pitch 1.2); Mandarin splits on CJK punctuation, applies `_toneFor` rate/pitch shaping, and assigns the selected Mandarin voice.
+
+Backend (`llm.py`):
+- `LANGUAGE_DIRECTIVE["zh"]` is a multi-line Mandarin instruction appended to the system prompt.
+- `build_system_prompt(verdict, profile, lang)` selects the directive from the dict.
+- `_rebind_system_prompt_language(history, lang)` strips all known directives from `history[0]` and re-appends the new one so mid-session toggles take effect on the next reply without resetting the conversation.
+- All three chat routes (`/alert`, `/start`, `/message`) read `lang` from the request body and forward it to LLM functions.
+
+Kirby keeps the no-emoji rule on the web regardless of language. The Telegram `TELEGRAM_EMOJI_DIRECTIVE` is a separate per-turn instruction and is unaffected by the language toggle.
+
+## Embedded Google Maps Route Panel
+
+After a booking is confirmed, or when the user asks Kirby for directions, a slide-in map panel opens inside the dashboard. The panel is an `<iframe>` powered by the Google Maps Embed API; no Google Maps JavaScript SDK is loaded.
+
+Backend (`routes/map_nav.py`):
+- `POST /api/map_embed_url` accepts `{clinic_lat, clinic_lng, user_lat, user_lng, mode}` and returns `{ok, embed_url}` or `{ok: false, error}`. Mode must be one of `driving`, `transit`, `walking`, `bicycling`. Coordinates are validated for finite float range. Requires `GOOGLE_MAPS_EMBED_API_KEY`.
+- `POST /api/clinic_match` accepts `{query}` and fuzzy-matches it against `session["last_clinics"]` using Levenshtein distance (pure-Python fallback; uses `python-Levenshtein` if installed). Returns `{ok, match, candidates, confident}`. `confident=true` when distance is 0 or the query is a substring; `confident=false` when distance is 1-4; no match when distance > 4.
+
+Backend (`llm.py`):
+- Per-chat clinic list is stored in `_chat_clinics[chat_id]` via `remember_clinics` / `get_remembered_clinics`.
+- After `send_booking_to_telegram` returns success, `_invoke` resolves the clinic name back to coordinates using `_find_clinic_by_name` and appends `%%MAP_META%%{"lat":...,"lng":...,"name":"..."}%%END_META%%` to Kirby's final reply.
+
+Frontend (`dashboard.js`):
+- `extractMapMeta(reply)` strips the `%%MAP_META%%` block and returns `{text, meta}`.
+- `maybeOpenMapFromReply(cleanText, meta)` calls `openMapPanel` when `meta` contains valid coordinates.
+- `openMapPanel(clinicName, clinicLat, clinicLng)` fetches user position, sets `_mapState`, and calls `loadMapIframe("driving")`.
+- `loadMapIframe(mode)` POSTs to `/api/map_embed_url` and sets the iframe `src`. Falls back to a clinic-only Google Maps embed when user location is unavailable or the server returns an error.
+- Mode buttons (driving / transit / walking / cycling) re-call `loadMapIframe` on click.
+- Fuzzy-match pre-check: before sending a message 3-60 chars long, the frontend POSTs to `/api/clinic_match`. A `confident=false` match shows a "Did you mean X? yes/no" prompt; `yes` substitutes the corrected name; `no` clears the pending match and asks the user to retype.
 
 ## Telegram as a Second Surface
 

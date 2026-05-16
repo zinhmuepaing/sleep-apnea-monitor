@@ -14,87 +14,123 @@
 
   <div id="onboarding-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
     <div class="modal-card">
-      <h2 id="onboarding-title" class="modal-title">Welcome. Let's calibrate.</h2>
-      <p class="modal-disclaimer">
+      <h2 id="onboarding-title" class="modal-title" data-i18n="onboarding_title">Welcome. Let's calibrate.</h2>
+      <p class="modal-disclaimer" data-i18n="onboarding_disclaimer">
         Your name and age calibrate baseline heart-rate and SpO<sub>2</sub> thresholds, and label your CSV exports.
       </p>
 
       <div class="modal-table-wrap">
         <table class="modal-table">
           <thead>
-            <tr><th>Age range</th><th>BPM</th><th>SpO<sub>2</sub></th></tr>
+            <tr>
+              <th data-i18n="onboarding_th_age_range">Age range</th>
+              <th data-i18n="onboarding_th_bpm">BPM</th>
+              <th data-i18n="onboarding_th_spo2">SpO<sub>2</sub></th>
+            </tr>
           </thead>
           <tbody>
-            <tr><td>0&ndash;3 yrs (Infants/Toddlers)</td><td>80&ndash;130</td><td>95&ndash;100%</td></tr>
-            <tr><td>4&ndash;11 yrs (Children)</td><td>75&ndash;118</td><td>95&ndash;100%</td></tr>
-            <tr><td>12&ndash;64 yrs (Teens/Adults)</td><td>60&ndash;100</td><td>95&ndash;100%</td></tr>
-            <tr><td>65+ yrs (Seniors)</td><td>60&ndash;100</td><td>95&ndash;100%*</td></tr>
+            <tr><td data-i18n="onboarding_row_0_3">0&ndash;3 yrs (Infants/Toddlers)</td><td>80&ndash;130</td><td>95&ndash;100%</td></tr>
+            <tr><td data-i18n="onboarding_row_4_11">4&ndash;11 yrs (Children)</td><td>75&ndash;118</td><td>95&ndash;100%</td></tr>
+            <tr><td data-i18n="onboarding_row_12_64">12&ndash;64 yrs (Teens/Adults)</td><td>60&ndash;100</td><td>95&ndash;100%</td></tr>
+            <tr><td data-i18n="onboarding_row_65">65+ yrs (Seniors)</td><td>60&ndash;100</td><td>95&ndash;100%*</td></tr>
           </tbody>
         </table>
       </div>
 
       <form id="onboarding-form" class="modal-form" novalidate>
         <label class="modal-field">
-          <span class="modal-label">Name</span>
+          <span class="modal-label" data-i18n="onboarding_name">Name</span>
           <input id="onboarding-name" type="text" maxlength="60" autocomplete="name" required>
         </label>
         <label class="modal-field">
-          <span class="modal-label">Age</span>
+          <span class="modal-label" data-i18n="onboarding_age">Age</span>
           <input id="onboarding-age" type="number" inputmode="numeric" min="1" max="120" step="1" required>
         </label>
         <label class="modal-field">
-          <span class="modal-label">Activity level</span>
+          <span class="modal-label" data-i18n="onboarding_activity">Activity level</span>
           <select id="onboarding-activity" required>
-            <option value="" disabled selected>Choose one</option>
-            <option value="sedentary">Sedentary</option>
-            <option value="lightly_active">Lightly active</option>
-            <option value="moderately_active">Moderately active</option>
-            <option value="very_active">Very active</option>
+            <option value="" disabled selected data-i18n="onboarding_choose">Choose one</option>
+            <option value="sedentary" data-i18n="onboarding_activity_sedentary">Sedentary</option>
+            <option value="lightly_active" data-i18n="onboarding_activity_light">Lightly active</option>
+            <option value="moderately_active" data-i18n="onboarding_activity_moderate">Moderately active</option>
+            <option value="very_active" data-i18n="onboarding_activity_very">Very active</option>
           </select>
         </label>
         <p id="onboarding-error" class="modal-error" role="alert"></p>
-        <button id="onboarding-save" type="submit" class="modal-save" disabled>Save Changes</button>
+        <button id="onboarding-save" type="submit" class="modal-save" disabled data-i18n="onboarding_save">Save Changes</button>
       </form>
     </div>
   </div>
 
   <header class="topbar">
-    <h1>Health Monitor Dashboard</h1>
+    <h1 id="dashboard-title" data-i18n="dashboard_title">Health Monitor Dashboard</h1>
+    <button id="lang-toggle-btn" class="lang-toggle" type="button" aria-label="Switch language">中文</button>
     <div class="status">
       <span id="status-pill" class="pill pill-idle">idle</span>
       <span id="status-detail" class="status-detail"></span>
-      <a id="download-csv" class="btn-download" href="/api/export.csv" download>Download Data</a>
+      <a id="download-csv" class="btn-download" href="/api/export.csv" download data-i18n="download_csv_btn">Download Data</a>
     </div>
   </header>
 
   <div id="anomaly-banner" class="banner banner-hidden" role="alert">
-    <span id="anomaly-banner-text">Anomaly detected.</span>
-    <button id="anomaly-open-chat" type="button">Talk to Kirby</button>
+    <span id="anomaly-banner-text" data-i18n="anomaly_banner_title">Anomaly detected.</span>
+    <button id="anomaly-open-chat" type="button" data-i18n="talk_to_kirby_btn">Talk to Kirby</button>
   </div>
 
   <main class="grid">
     <section class="card">
-      <header><h2>SpO<sub>2</sub></h2><span id="spo2-now" class="big">--</span></header>
+      <header><h2 data-i18n="spo2_label">SpO<sub>2</sub></h2><span id="spo2-now" class="big">--</span></header>
       <div class="chart-wrap"><canvas id="chart-spo2"></canvas></div>
     </section>
 
     <section class="card">
-      <header><h2>BPM</h2><span id="bpm-now" class="big">--</span></header>
+      <header><h2 data-i18n="bpm_label">BPM</h2><span id="bpm-now" class="big">--</span></header>
       <div class="chart-wrap"><canvas id="chart-bpm"></canvas></div>
     </section>
 
     <section class="card card-verdict">
-      <header><h2>Verdict</h2></header>
+      <header><h2 data-i18n="verdict_label">Verdict</h2></header>
       <div class="verdict-grid">
-        <div><span class="label">SpO<sub>2</sub> status</span><span id="verdict-spo2" class="pill pill-idle">--</span></div>
-        <div><span class="label">BPM status</span><span id="verdict-bpm" class="pill pill-idle">--</span></div>
-        <div><span class="label">Avg SpO<sub>2</sub></span><span id="verdict-avg-spo2" class="value">--</span></div>
-        <div><span class="label">Avg BPM</span><span id="verdict-avg-bpm" class="value">--</span></div>
-        <div><span class="label">Window</span><span id="verdict-window" class="value">--</span></div>
-        <div><span class="label">Anomaly</span><span id="verdict-anomaly" class="pill pill-idle">none</span></div>
+        <div><span class="label" data-i18n="label_spo2_status">SpO<sub>2</sub> status</span><span id="verdict-spo2" class="pill pill-idle">--</span></div>
+        <div><span class="label" data-i18n="label_bpm_status">BPM status</span><span id="verdict-bpm" class="pill pill-idle">--</span></div>
+        <div><span class="label" data-i18n="label_avg_spo2">Avg SpO<sub>2</sub></span><span id="verdict-avg-spo2" class="value">--</span></div>
+        <div><span class="label" data-i18n="label_avg_bpm">Avg BPM</span><span id="verdict-avg-bpm" class="value">--</span></div>
+        <div><span class="label" data-i18n="label_window">Window</span><span id="verdict-window" class="value">--</span></div>
+        <div><span class="label" data-i18n="label_anomaly">Anomaly</span><span id="verdict-anomaly" class="pill pill-idle">none</span></div>
       </div>
     </section>
   </main>
+
+  <div id="map-panel" class="map-panel glass" aria-hidden="true">
+    <div class="map-panel__header">
+      <span class="map-panel__title" data-i18n="map_panel_title">Route to Clinic</span>
+      <button id="map-panel-close" class="map-panel__close" aria-label="Close map">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6"  y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="map-panel__mode-bar">
+      <button class="map-mode-btn active" data-mode="driving" data-i18n="map_driving">Driving</button>
+      <button class="map-mode-btn" data-mode="transit" data-i18n="map_transit">Transit</button>
+      <button class="map-mode-btn" data-mode="walking" data-i18n="map_walking">Walking</button>
+      <button class="map-mode-btn" data-mode="bicycling" data-i18n="map_cycling">Cycling</button>
+    </div>
+
+    <div class="map-panel__body">
+      <iframe id="map-iframe"
+              class="map-panel__iframe"
+              referrerpolicy="no-referrer-when-downgrade"
+              allowfullscreen
+              loading="lazy"
+              src="about:blank">
+      </iframe>
+    </div>
+  </div>
 
   <aside id="chat-panel" class="chat-panel chat-hidden" aria-label="Kirby chat">
     <header class="chat-header">
@@ -105,15 +141,15 @@
         </span>
         <div class="chat-name-block">
           <span class="chat-title">Kirby</span>
-          <span class="chat-subtitle">Sleep &amp; cardiac companion</span>
+          <span class="chat-subtitle" data-i18n="chat_subtitle">Sleep &amp; cardiac companion</span>
         </div>
       </div>
       <button id="chat-close" type="button" aria-label="Close chat">×</button>
     </header>
-    <p class="chat-disclaimer">This is wellness coaching, not medical advice.</p>
+    <p class="chat-disclaimer" data-i18n="disclaimer">This is wellness coaching, not medical advice.</p>
     <div id="chat-log" class="chat-log"></div>
     <form id="chat-form" class="chat-form">
-      <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Message Kirby...">
+      <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Message Kirby..." data-i18n-placeholder="chat_placeholder">
       <button id="chat-mic" type="button" class="mic-btn" aria-label="Voice input"
               aria-pressed="false" title="Click to speak">
         <svg class="mic-icon mic-icon-idle" viewBox="0 0 24 24" width="18" height="18"
@@ -140,7 +176,7 @@
 
   <button id="chat-toggle" class="kirby-trigger" type="button" aria-label="Ask Kirby">
     <span class="kirby-orb" aria-hidden="true"></span>
-    <span class="kirby-trigger-label">Ask Kirby</span>
+    <span class="kirby-trigger-label" data-i18n="ask_kirby_btn">Ask Kirby</span>
   </button>
 
   <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
